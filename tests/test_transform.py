@@ -11,17 +11,20 @@ import pytest
 
 from src.transform import (
     CEG_AGGREGATE_PLACEHOLDER,
+    EXPECTED_INTERVAL_HOURS,
     EXPECTED_SOURCE_COLUMNS,
     INTERNAL_TO_SOURCE_COLUMNS,
     MWMED_INTERNAL_COLUMNS,
     SOURCE_TO_INTERNAL_COLUMNS,
     TIMESTAMP_TIMEZONE_POLICY,
     EmptyFilterResultError,
+    GranularityValidationError,
     IdentifierNormalizationError,
     NumericConversionError,
     RawCsvReadError,
     SourceSchemaError,
     TimestampConversionError,
+    add_eligibility_flags,
     convert_mwmed_columns,
     filter_by_state,
     inspect_source_schema,
@@ -29,6 +32,7 @@ from src.transform import (
     preserve_operational_identifiers,
     read_raw_ons_csv,
     standardize_column_names,
+    validate_granularity_and_add_duration,
 )
 
 
@@ -258,6 +262,23 @@ def test_reads_verified_january_source_file() -> None:
     assert id_report["distinct_valid_cegs"] == 4
     assert isinstance(ce_id_df["ons_id"].dtype, pd.StringDtype)
     assert isinstance(ce_id_df["ceg"].dtype, pd.StringDtype)
+
+    ce_flagged_df, elig_report = add_eligibility_flags(ce_id_df)
+    ce_final_df, gran_report = validate_granularity_and_add_duration(ce_flagged_df)
+
+    assert elig_report["total_rows"] == 28_272
+    assert elig_report["elegivel_geracao_verificada_rows"] == 28_272
+    assert elig_report["elegivel_referencia_final_rows"] == 2_772
+    assert elig_report["possui_restricao_classificada_rows"] == 5_692
+    assert elig_report["elegivel_gnra_rows"] == 5_692
+    assert elig_report["elegivel_enriquecimento_aneel_rows"] == 5_952
+
+    assert gran_report["distinct_ons_ids"] == 19
+    assert gran_report["gap_transitions"] == 0
+    assert gran_report["unexpected_step_transitions"] == 0
+    assert gran_report["off_grid_timestamp_rows"] == 0
+    assert gran_report["observed_step_minutes"] == (30.0,)
+    assert (ce_final_df["duracao_horas"] == EXPECTED_INTERVAL_HOURS).all()
 
 
 def _sample_standardized_dataframe(
@@ -525,3 +546,117 @@ def test_preserve_operational_identifiers_rejects_null_or_blank_ons_id() -> None
     assert report["null_ons_id_rows"] == 1
     assert report["blank_ons_id_rows"] == 1
     assert report["distinct_ons_ids"] == 1
+
+
+def test_add_eligibility_flags_classifies_all_indicators_without_dropping_rows() -> None:
+    raw = _sample_standardized_dataframe(
+        {
+            "ons_id": ["CE_01", "CE_02", "CE_03", "CE_04"],
+            "ceg": ["-", "EOL.CV.CE.0001-0.01", pd.NA, "-"],
+            "instante": [
+                "2025-01-01 00:00:00",
+                "2025-01-01 00:30:00",
+                "2025-01-01 01:00:00",
+                "2025-01-01 01:30:00",
+            ],
+            "geracao_mwmed": ["100.0", "-5.0", pd.NA, "50.0"],
+            "geracao_referencia_final_mwmed": ["120.0", pd.NA, pd.NA, "60.0"],
+            "restricao_razao_codigo": ["REL", "ENE", "XYZ", pd.NA],
+            "geracao_nao_realizada_apurada": ["20.0", "10.0", "5.0", "10.0"],
+        }
+    )
+    typed, _ = parse_instante_column(raw)
+    typed, _ = convert_mwmed_columns(typed)
+
+    flagged, report = add_eligibility_flags(typed)
+
+    assert len(flagged) == 4
+    assert "elegivel_geracao_verificada" not in typed.columns
+    assert list(flagged["elegivel_geracao_verificada"]) == [True, False, False, True]
+    assert list(flagged["elegivel_referencia_final"]) == [True, False, False, True]
+    assert list(flagged["possui_restricao_classificada"]) == [True, True, False, False]
+    assert list(flagged["elegivel_gnra"]) == [True, True, False, False]
+    assert list(flagged["elegivel_enriquecimento_aneel"]) == [False, True, False, False]
+    # Preserva GNRa original como string sem converter unidade.
+    assert isinstance(flagged["geracao_nao_realizada_apurada"].dtype, pd.StringDtype)
+    assert report == {
+        "total_rows": 4,
+        "elegivel_geracao_verificada_rows": 2,
+        "elegivel_referencia_final_rows": 2,
+        "possui_restricao_classificada_rows": 2,
+        "elegivel_gnra_rows": 2,
+        "elegivel_enriquecimento_aneel_rows": 1,
+    }
+
+
+def test_add_eligibility_flags_rejects_untyped_or_duplicate_columns() -> None:
+    raw = _sample_standardized_dataframe()
+    with pytest.raises(SourceSchemaError, match="datetime64 sem fuso"):
+        add_eligibility_flags(raw)
+
+    typed_ts, _ = parse_instante_column(raw)
+    with pytest.raises(SourceSchemaError, match="tipo numérico"):
+        add_eligibility_flags(typed_ts)
+
+    typed_all, _ = convert_mwmed_columns(typed_ts)
+    dup_cols = pd.concat([typed_all, typed_all[["ons_id"]]], axis=1)
+    with pytest.raises(SourceSchemaError, match="nomes de colunas duplicados"):
+        add_eligibility_flags(dup_cols)
+
+
+def test_validate_granularity_assigns_half_hour_and_tracks_gaps_without_changing_duration() -> None:
+    raw = _sample_standardized_dataframe(
+        {
+            "ons_id": ["CE_01", "CE_01", "CE_01", "CE_02"],
+            "instante": [
+                "2025-01-01 00:00:00",
+                "2025-01-01 00:30:00",
+                "2025-01-01 01:30:00",  # lacuna de 60 min (patamar 01:00 ausente)
+                pd.NA,
+            ],
+        }
+    )
+    typed, _ = parse_instante_column(raw)
+
+    result, report = validate_granularity_and_add_duration(typed, strict=True)
+
+    assert isinstance(result["duracao_horas"].dtype, pd.Float64Dtype)
+    assert list(result["duracao_horas"].iloc[:3]) == [0.5, 0.5, 0.5]
+    assert pd.isna(result["duracao_horas"].iloc[3])
+    assert report["checked_transitions"] == 2
+    assert report["exact_step_transitions"] == 1
+    assert report["gap_transitions"] == 1
+    assert report["unexpected_step_transitions"] == 0
+    assert report["off_grid_timestamp_rows"] == 0
+    assert report["observed_step_minutes"] == (30.0, 60.0)
+
+
+@pytest.mark.parametrize(
+    "timestamps",
+    [
+        ["2025-01-01 00:00:00", "2025-01-01 00:15:00"],  # passo de 15 min + fora da grade
+        ["2025-01-01 00:00:00", "2025-01-01 00:00:00"],  # duplicata (0 min)
+        ["2025-01-01 00:00:05", "2025-01-01 00:30:05"],  # segundos != 0
+    ],
+)
+def test_validate_granularity_rejects_off_grid_or_unexpected_steps(
+    timestamps: list[str],
+) -> None:
+    raw = _sample_standardized_dataframe(
+        {"ons_id": ["CE_01", "CE_01"], "instante": timestamps}
+    )
+    typed, _ = parse_instante_column(raw)
+
+    with pytest.raises(GranularityValidationError, match="Granularidade incompatível"):
+        validate_granularity_and_add_duration(typed, strict=True)
+
+
+def test_validate_granularity_rejects_invalid_step_parameter() -> None:
+    raw = _sample_standardized_dataframe()
+    typed, _ = parse_instante_column(raw)
+
+    for bad_step in (0, -30, 45, True):
+        with pytest.raises(ValueError, match="divisor de 60"):
+            validate_granularity_and_add_duration(
+                typed, expected_step_minutes=bad_step  # type: ignore[arg-type]
+            )

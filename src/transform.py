@@ -27,6 +27,9 @@ TIMESTAMP_FORMAT = "%Y-%m-%d %H:%M:%S"
 TIMESTAMP_TIMEZONE_POLICY = "naive_ons_official_clock"
 DEFAULT_MVP_STATE = "CE"
 CEG_AGGREGATE_PLACEHOLDER = "-"
+EXPECTED_INTERVAL_MINUTES = 30
+EXPECTED_INTERVAL_HOURS = 0.5
+VALID_RESTRICTION_REASON_CODES: frozenset[str] = frozenset({"REL", "CNF", "ENE", "PAR"})
 _STATE_CODE_PATTERN = re.compile(r"^[A-Z]{2}$")
 _STRICT_DECIMAL_PATTERN = re.compile(
     r"^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$"
@@ -158,6 +161,36 @@ class EmptyFilterResultError(ValueError):
 
 class IdentifierNormalizationError(ValueError):
     """Os identificadores operacionais (ons_id / ceg) apresentam falhas críticas."""
+
+
+class GranularityValidationError(ValueError):
+    """A granularidade temporal dos registros diverge do passo esperado."""
+
+
+class EligibilityReport(TypedDict):
+    """Resumo auditável da elegibilidade dos registros por indicador."""
+
+    total_rows: int
+    elegivel_geracao_verificada_rows: int
+    elegivel_referencia_final_rows: int
+    possui_restricao_classificada_rows: int
+    elegivel_gnra_rows: int
+    elegivel_enriquecimento_aneel_rows: int
+
+
+class GranularityReport(TypedDict):
+    """Diagnóstico auditável da granularidade temporal e duração do intervalo."""
+
+    expected_step_minutes: int
+    validated_duration_hours: float
+    total_rows: int
+    distinct_ons_ids: int
+    checked_transitions: int
+    exact_step_transitions: int
+    gap_transitions: int
+    unexpected_step_transitions: int
+    off_grid_timestamp_rows: int
+    observed_step_minutes: tuple[float, ...]
 
 
 class StateFilterReport(TypedDict):
@@ -722,6 +755,313 @@ def preserve_operational_identifiers(
         "ceg_placeholder_rows": int(ceg_placeholder_mask.sum()),
         "ceg_null_or_blank_rows": int(ceg_null_or_blank_mask.sum()),
         "distinct_valid_cegs": int(valid_ceg_series.nunique()),
+    }
+    return result, report
+
+
+def add_eligibility_flags(
+    dataframe: pd.DataFrame,
+) -> tuple[pd.DataFrame, EligibilityReport]:
+    """Cria sinalizadores booleanos explícitos de elegibilidade para cada indicador.
+
+    Nenhuma linha é descartada. Em vez disso, adiciona cinco colunas
+    ``pd.BooleanDtype`` que permitem às camadas de métricas e SQL calcular
+    indicadores e taxas de cobertura com rastreabilidade:
+    - ``elegivel_geracao_verificada``: ``instante`` válido, ``ons_id`` válido e
+      ``geracao_mwmed`` finito ``>= 0``.
+    - ``elegivel_referencia_final``: ``instante`` válido, ``ons_id`` válido e
+      ``geracao_referencia_final_mwmed`` finito ``>= 0``.
+    - ``possui_restricao_classificada``: ``restricao_razao_codigo`` pertence ao
+      domínio oficial ``{REL, CNF, ENE, PAR}``.
+    - ``elegivel_gnra``: ``possui_restricao_classificada`` e
+      ``geracao_nao_realizada_apurada`` preenchida com número decimal finito
+      ``>= 0`` (preservando o valor bruto da GNRa sem converter para MWh).
+    - ``elegivel_enriquecimento_aneel``: ``ceg`` preenchido, não vazio e
+      diferente de ``'-'`` (conjuntos de usinas não são elegíveis).
+
+    Args:
+        dataframe: Tabela padronizada e tipada (com ``instante`` datetime naive
+            e colunas MWmed numéricas).
+
+    Returns:
+        Tupla ``(enriched_dataframe, report)``.
+
+    Raises:
+        TypeError: Quando ``dataframe`` não é ``pd.DataFrame``.
+        SourceSchemaError: Quando há colunas duplicadas, colunas obrigatórias
+            ausentes ou colunas ainda sem a tipagem esperada.
+    """
+
+    if not isinstance(dataframe, pd.DataFrame):
+        raise TypeError("dataframe deve ser um pandas.DataFrame.")
+    if not dataframe.columns.is_unique:
+        duplicated = sorted(
+            str(col) for col in dataframe.columns[dataframe.columns.duplicated()].unique()
+        )
+        raise SourceSchemaError(
+            f"O DataFrame contém nomes de colunas duplicados: {duplicated}."
+        )
+
+    required_columns = (
+        "ons_id",
+        "ceg",
+        "instante",
+        "geracao_mwmed",
+        "geracao_referencia_final_mwmed",
+        "restricao_razao_codigo",
+        "geracao_nao_realizada_apurada",
+    )
+    missing = [col for col in required_columns if col not in dataframe.columns]
+    if missing:
+        raise SourceSchemaError(
+            f"Colunas obrigatórias ausentes para criar sinalizadores de elegibilidade: {missing}."
+        )
+
+    if isinstance(dataframe["instante"].dtype, pd.DatetimeTZDtype) or not (
+        pd.api.types.is_datetime64_any_dtype(dataframe["instante"].dtype)
+    ):
+        raise SourceSchemaError(
+            "A coluna 'instante' deve estar convertida para datetime64 sem fuso "
+            f"(naive) antes de criar sinalizadores (dtype atual: {dataframe['instante'].dtype})."
+        )
+
+    for num_col in ("geracao_mwmed", "geracao_referencia_final_mwmed"):
+        if not pd.api.types.is_numeric_dtype(
+            dataframe[num_col].dtype
+        ) or pd.api.types.is_bool_dtype(dataframe[num_col].dtype):
+            raise SourceSchemaError(
+                f"A coluna {num_col!r} deve estar convertida para tipo numérico "
+                f"antes de criar sinalizadores (dtype atual: {dataframe[num_col].dtype})."
+            )
+
+    result = dataframe.copy()
+
+    ons_series = result["ons_id"].astype("string")
+    valid_ons = (~ons_series.isna()) & (ons_series.str.strip() != "")
+    valid_instante = ~result["instante"].isna()
+    valid_key = valid_ons & valid_instante
+
+    geracao = pd.to_numeric(result["geracao_mwmed"], errors="coerce")
+    geracao_finite = pd.Series(
+        np.isfinite(geracao.fillna(0.0).to_numpy(dtype="float64")),
+        index=result.index,
+    )
+    elegivel_geracao_verificada = (
+        valid_key & (~geracao.isna()) & geracao_finite & (geracao >= 0).fillna(False)
+    )
+
+    ref_final = pd.to_numeric(result["geracao_referencia_final_mwmed"], errors="coerce")
+    ref_final_finite = pd.Series(
+        np.isfinite(ref_final.fillna(0.0).to_numpy(dtype="float64")),
+        index=result.index,
+    )
+    elegivel_referencia_final = (
+        valid_key
+        & (~ref_final.isna())
+        & ref_final_finite
+        & (ref_final >= 0).fillna(False)
+    )
+
+    reason_series = result["restricao_razao_codigo"].astype("string")
+    possui_restricao_classificada = (~reason_series.isna()) & (
+        reason_series.isin(VALID_RESTRICTION_REASON_CODES)
+    )
+
+    # Valida GNRa sem alterar sua coluna original nem converter para MWh.
+    gnra_numeric, _ = _convert_single_numeric_series(
+        result["geracao_nao_realizada_apurada"],
+        column="geracao_nao_realizada_apurada",
+        source_column="val_geracaonaorealizadaapurada",
+    )
+    elegivel_gnra = (
+        valid_key
+        & possui_restricao_classificada
+        & (~gnra_numeric.isna())
+        & (gnra_numeric >= 0).fillna(False)
+    )
+
+    ceg_series = result["ceg"].astype("string")
+    elegivel_enriquecimento_aneel = (
+        (~ceg_series.isna())
+        & (ceg_series.str.strip() != "")
+        & (ceg_series != CEG_AGGREGATE_PLACEHOLDER)
+    )
+
+    result["elegivel_geracao_verificada"] = elegivel_geracao_verificada.astype("boolean")
+    result["elegivel_referencia_final"] = elegivel_referencia_final.astype("boolean")
+    result["possui_restricao_classificada"] = possui_restricao_classificada.astype(
+        "boolean"
+    )
+    result["elegivel_gnra"] = elegivel_gnra.astype("boolean")
+    result["elegivel_enriquecimento_aneel"] = elegivel_enriquecimento_aneel.astype(
+        "boolean"
+    )
+
+    report: EligibilityReport = {
+        "total_rows": len(result),
+        "elegivel_geracao_verificada_rows": int(elegivel_geracao_verificada.sum()),
+        "elegivel_referencia_final_rows": int(elegivel_referencia_final.sum()),
+        "possui_restricao_classificada_rows": int(possui_restricao_classificada.sum()),
+        "elegivel_gnra_rows": int(elegivel_gnra.sum()),
+        "elegivel_enriquecimento_aneel_rows": int(elegivel_enriquecimento_aneel.sum()),
+    }
+    return result, report
+
+
+def validate_granularity_and_add_duration(
+    dataframe: pd.DataFrame,
+    *,
+    expected_step_minutes: int = EXPECTED_INTERVAL_MINUTES,
+    strict: bool = True,
+) -> tuple[pd.DataFrame, GranularityReport]:
+    """Valida a granularidade temporal por ``ons_id`` e cria ``duracao_horas``.
+
+    Só preenche ``duracao_horas`` (em ``Float64``, padrão ``0.5`` h para 30 min)
+    após verificar que:
+    - todos os timestamps não nulos estão alinhados à grade do passo esperado
+      (para 30 min: minutos múltiplos de 30, segundos == 0, microssegundos == 0);
+    - todas as transições consecutivas por ``ons_id`` (ordenado por ``instante``)
+      são múltiplos positivos exatos de ``expected_step_minutes`` (transições de
+      60, 90 min etc. são contabilizadas como lacunas em ``gap_transitions``, sem
+      alterar a duração nominal do patamar para 1,0 h).
+
+    Transições de 0 min (duplicatas) ou fora da grade (ex.: 15 min) são
+    sinalizadas em ``unexpected_step_transitions`` e bloqueiam a criação de
+    ``duracao_horas`` sob ``strict=True`` lançando ``GranularityValidationError``.
+
+    Args:
+        dataframe: Tabela contendo ``ons_id`` e ``instante`` (datetime64 naive).
+        expected_step_minutes: Granularidade esperada em minutos (padrão 30;
+            deve ser divisor positivo de 60).
+        strict: Se ``True`` (padrão), falha com ``GranularityValidationError``
+            caso haja timestamps fora da grade ou passos incompatíveis.
+
+    Returns:
+        Tupla ``(dataframe_with_duration, report)``.
+
+    Raises:
+        TypeError: Quando ``dataframe`` não é ``pd.DataFrame``.
+        ValueError: Quando ``expected_step_minutes`` ou ``strict`` é inválido.
+        SourceSchemaError: Quando ``ons_id``/``instante`` estão ausentes,
+            duplicados ou não tipados.
+        GranularityValidationError: Quando ``strict=True`` e a granularidade
+            observada não é compatível com ``expected_step_minutes``.
+    """
+
+    if not isinstance(dataframe, pd.DataFrame):
+        raise TypeError("dataframe deve ser um pandas.DataFrame.")
+    if not dataframe.columns.is_unique:
+        duplicated = sorted(
+            str(col) for col in dataframe.columns[dataframe.columns.duplicated()].unique()
+        )
+        raise SourceSchemaError(
+            f"O DataFrame contém nomes de colunas duplicados: {duplicated}."
+        )
+    if (
+        isinstance(expected_step_minutes, bool)
+        or not isinstance(expected_step_minutes, int)
+        or expected_step_minutes <= 0
+        or 60 % expected_step_minutes != 0
+    ):
+        raise ValueError(
+            "expected_step_minutes deve ser um inteiro positivo divisor de 60 (ex.: 30)."
+        )
+    if not isinstance(strict, bool):
+        raise ValueError("strict deve ser um valor booleano (True ou False).")
+
+    missing = [col for col in ("ons_id", "instante") if col not in dataframe.columns]
+    if missing:
+        raise SourceSchemaError(
+            f"Colunas obrigatórias ausentes para validação de granularidade: {missing}."
+        )
+
+    if isinstance(dataframe["instante"].dtype, pd.DatetimeTZDtype) or not (
+        pd.api.types.is_datetime64_any_dtype(dataframe["instante"].dtype)
+    ):
+        raise SourceSchemaError(
+            "A coluna 'instante' deve estar convertida para datetime64 sem fuso "
+            f"(naive) antes de validar granularidade (dtype atual: {dataframe['instante'].dtype})."
+        )
+
+    result = dataframe.copy()
+    instante = result["instante"]
+    ons_id = result["ons_id"].astype("string")
+
+    non_null_ts_mask = ~instante.isna()
+    off_grid_mask = non_null_ts_mask & (
+        ((instante.dt.minute % expected_step_minutes) != 0)
+        | (instante.dt.second != 0)
+        | (instante.dt.microsecond != 0)
+    )
+    off_grid_rows = int(off_grid_mask.sum())
+
+    # Calcula transições consecutivas por ons_id válido sem alterar a ordem original de result.
+    valid_for_diff = pd.DataFrame(
+        {"ons_id": ons_id, "instante": instante}, index=result.index
+    ).dropna(subset=["ons_id", "instante"])
+    valid_for_diff = valid_for_diff[valid_for_diff["ons_id"].str.strip() != ""]
+
+    distinct_ons_ids = int(valid_for_diff["ons_id"].nunique())
+    checked_transitions = 0
+    exact_step_transitions = 0
+    gap_transitions = 0
+    unexpected_step_transitions = 0
+    observed_steps: set[float] = set()
+
+    if not valid_for_diff.empty:
+        sorted_pairs = valid_for_diff.sort_values(["ons_id", "instante"], kind="mergesort")
+        diffs_seconds = (
+            sorted_pairs.groupby("ons_id", sort=False)["instante"]
+            .diff()
+            .dt.total_seconds()
+            .dropna()
+        )
+        checked_transitions = int(len(diffs_seconds))
+        expected_seconds = float(expected_step_minutes * 60)
+
+        for step_sec in diffs_seconds.unique():
+            observed_steps.add(round(float(step_sec) / 60.0, 6))
+
+        exact_mask = diffs_seconds == expected_seconds
+        gap_mask = (diffs_seconds > expected_seconds) & (
+            (diffs_seconds % expected_seconds) == 0.0
+        )
+        unexpected_mask = ~(exact_mask | gap_mask)
+
+        exact_step_transitions = int(exact_mask.sum())
+        gap_transitions = int(gap_mask.sum())
+        unexpected_step_transitions = int(unexpected_mask.sum())
+
+    duration_hours = expected_step_minutes / 60.0
+
+    if strict and (off_grid_rows > 0 or unexpected_step_transitions > 0):
+        raise GranularityValidationError(
+            f"Granularidade incompatível com passo de {expected_step_minutes} minuto(s): "
+            f"{off_grid_rows} timestamp(s) fora da grade, "
+            f"{unexpected_step_transitions} transição(ões) inesperada(s). "
+            f"Passos observados (min): {sorted(observed_steps)}."
+        )
+
+    duration_series = pd.Series(pd.NA, index=result.index, dtype="Float64")
+    if off_grid_rows == 0 and unexpected_step_transitions == 0:
+        duration_series.loc[non_null_ts_mask] = duration_hours
+    else:
+        # Em modo strict=False, atribui duração apenas aos timestamps alinhados à grade.
+        duration_series.loc[non_null_ts_mask & (~off_grid_mask)] = duration_hours
+
+    result["duracao_horas"] = duration_series
+
+    report: GranularityReport = {
+        "expected_step_minutes": expected_step_minutes,
+        "validated_duration_hours": duration_hours,
+        "total_rows": len(result),
+        "distinct_ons_ids": distinct_ons_ids,
+        "checked_transitions": checked_transitions,
+        "exact_step_transitions": exact_step_transitions,
+        "gap_transitions": gap_transitions,
+        "unexpected_step_transitions": unexpected_step_transitions,
+        "off_grid_timestamp_rows": off_grid_rows,
+        "observed_step_minutes": tuple(sorted(observed_steps)),
     }
     return result, report
 

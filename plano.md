@@ -299,8 +299,8 @@ pip freeze > requirements.txt
 - [x] Manter `id_ons` como identificador e preservar `ceg` como texto (inclusive `-`).
 - [x] Verificar duplicidades na chave e decidir a regra de resolução **antes** de somar.
 - [x] Identificar nulos, valores negativos observados, códigos desconhecidos e datas fora do mês.
-- [ ] Criar sinalizadores de elegibilidade para cada indicador.
-- [ ] Calcular `duracao_horas` somente após validar granularidade; inicialmente, expectativa de 0,5 h.
+- [x] Criar sinalizadores de elegibilidade para cada indicador.
+- [x] Calcular `duracao_horas` somente após validar granularidade; inicialmente, expectativa de 0,5 h.
 - [ ] Preservar a GNRa oficial e criar colunas de energia em MWh somente após confirmar documentalmente as unidades e regras descritas na seção 4.
 - [ ] Salvar base tratada em `data/processed/restricoes_eolicas_ce_2025_01.parquet`.
 - [ ] Gerar relatório de qualidade: linhas de entrada/saída, nulos, duplicidades e rejeições justificadas.
@@ -524,4 +524,4 @@ Manter esta seção atualizada conforme a implementação:
 
 **Um projeto público com código funcional + pipeline de dados + SQL + dashboard + análise técnica escrita + testes + documentação.** O valor do projeto não estará só no visual: estará em extrair dados oficiais, garantir qualidade, construir métricas defensáveis e comunicar conclusões com responsabilidade.
 
-**Próxima ação:** concluir a Fase 3 criando os sinalizadores de elegibilidade por indicador, validação de granularidade para `duracao_horas`, preservação da GNRa oficial, escrita do Parquet (`data/processed/restricoes_eolicas_ce_2025_01.parquet`) e geração do relatório consolidado de qualidade.
+**Próxima ação:** concluir os 3 últimos itens da Fase 3 (preservação da GNRa + colunas de energia em MWh com `duracao_horas` validada, escrita atômica em Parquet `data/processed/restricoes_eolicas_ce_2025_01.parquet` + CLI `python -m src.transform` e relatório consolidado de qualidade).
