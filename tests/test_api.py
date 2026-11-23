@@ -38,6 +38,16 @@ def test_api_health_reports_database_configuration_without_exposing_secrets(
     assert "secret" not in json.dumps(payload_configured)
 
 
+def test_api_health_rejects_invalid_or_non_postgres_database_url(monkeypatch) -> None:
+    client = TestClient(app)
+
+    for invalid_url in ("   ", "sqlite:///local.db", "postgresql://", "valor-invalido"):
+        monkeypatch.setenv("DATABASE_URL", invalid_url)
+        response = client.get("/api/health")
+        assert response.status_code == 200
+        assert response.json()["database_configured"] is False
+
+
 def test_vercel_config_and_runtime_requirements_stay_lightweight() -> None:
     vercel_config = json.loads(
         (PROJECT_ROOT / "vercel.json").read_text(encoding="utf-8")
