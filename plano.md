@@ -51,8 +51,8 @@ Demonstrar domínio de **Python, Pandas, SQL, ETL, séries temporais, análise e
 - **Geografia:** Ceará (`id_estado = 'CE'`, conforme dicionário do ONS).
 - **Período inicial de desenvolvimento:** janeiro a março de **2025**; ampliar depois que o pipeline estiver validado.
 - **Granularidade de origem:** registros semi-horários publicados pelo ONS.
-- **Recursos essenciais:** extração, tratamento, indicadores, banco SQLite e dashboard web em HTML, CSS e JavaScript.
-- **Publicação:** repositório público com instruções para reproduzir os resultados e, se viável, dashboard hospedado.
+- **Recursos essenciais:** extração, tratamento, indicadores, banco PostgreSQL (Neon / Vercel Storage), API serverless FastAPI (`api/index.py`) e dashboard web em HTML, CSS e JavaScript hospedado gratuitamente na Vercel.
+- **Publicação:** repositório público no GitHub com instruções para reproduzir os resultados e aplicação web + API hospedadas na Vercel.
 
 ### 2.2. Segunda versão
 
@@ -106,7 +106,7 @@ O dicionário oficial contém, entre outros:
 | `id_ons` | Identificador no ONS | Chave principal de agregação por empreendimento/conjunto |
 | `ceg` | Código ANEEL, quando existente | Chave opcional de enriquecimento |
 | `din_instante` | Data/hora do registro | Converter para `datetime` e verificar fuso |
-| `val_geracao` | Geração verificada em **MWmed** | Numérico, não negativo |
+| `val_geracao` | Geração verificada em **MWmed** | Numérico; negativos são auditados, sem bloqueio na ausência de regra oficial específica |
 | `val_geracaolimitada` | Geração limitada, em **MWmed** | Numérico, pode ser nulo |
 | `val_disponibilidade` | Disponibilidade verificada, em **MWmed** | Numérico, pode ser nulo |
 | `val_geracaoreferencia` | Geração de referência, em **MWmed** | Numérico, pode ser nulo |
@@ -147,29 +147,31 @@ O dicionário oficial contém, entre outros:
 
 ---
 
-## 5. Arquitetura proposta
+## 5. Arquitetura proposta (Vercel + FastAPI + Neon PostgreSQL)
 
 ```text
-                   DADOS ABERTOS — ONS
-                           |
-                    download / extração
-                           |
-                  data/raw/ (originais)
-                           |
-                leitura + validação + limpeza
-                           |
-                  data/processed/ (.parquet)
-                           |
-                     agregações SQL
-                           |
-                    SQLite / tabelas
-                           |
-             aplicação web — HTML + CSS + JavaScript
-                           |
-                   Dashboard interativo
+                   DADOS ABERTOS — ONS (API CKAN / S3)
+                            |
+                     download / extração (local ou GitHub Actions)
+                            |
+                   data/raw/ (originais + .metadata.json)
+                            |
+                 leitura + validação + limpeza (pandas / pyarrow)
+                            |
+                   data/processed/ (.parquet)
+                            |
+                      carga idempotente em lote (psycopg v3)
+                            |
+               PostgreSQL gerenciado (Neon / Vercel Storage)
+                            |
+                 API Serverless FastAPI (api/index.py — leve, sem pandas)
+                            |
+              aplicação web estática na Vercel — HTML + CSS + JavaScript
+                            |
+                    Dashboard interativo
 ```
 
-**Tecnologias:** Python 3.11+, Pandas, NumPy, Requests, PyArrow, SQLite (`sqlite3`), HTML5, CSS3, JavaScript, Pytest, Git/GitHub. A interface consumirá somente dados processados e validados; o contrato entre o pipeline e o frontend será definido após o reconhecimento da base. PostgreSQL pode substituir SQLite em uma futura expansão.
+**Tecnologias:** Python 3.11+, Pandas, NumPy, Requests, PyArrow, **PostgreSQL (Neon via Vercel Storage)**, **`psycopg` v3**, **FastAPI**, HTML5, CSS3, JavaScript, Pytest, Git/GitHub e **Vercel (Hobby Plan)**. Para respeitar o limite de bundle (250 MB) e timeout (10 s) da Vercel, `requirements.txt` mantém apenas `fastapi` e `psycopg[binary]`, enquanto `requirements-etl.txt` concentra as dependências do pipeline ETL e testes. Detalhes em `docs/arquitetura_vercel.md`.
 
 ### 5.1. Estrutura de pastas planejada
 
@@ -177,41 +179,50 @@ O dicionário oficial contém, entre outros:
 renewable-energy-intelligence/
 ├── plano.md
 ├── README.md
-├── requirements.txt
+├── vercel.json                  # Roteamento de /api/* (FastAPI) e frontend estático na Vercel
+├── requirements.txt             # Dependências leves da API serverless na Vercel (FastAPI + psycopg)
+├── requirements-etl.txt         # Dependências completas do pipeline ETL, análise e testes
 ├── .gitignore
-├── .env.example
+├── .env.example                 # Modelo de DATABASE_URL (pooled) e DIRECT_DATABASE_URL (Neon)
 ├── LICENSE
+├── api/
+│   ├── __init__.py
+│   └── index.py                 # Entrypoint FastAPI serverless (/api/health e rotas analíticas)
 ├── frontend/
 │   ├── index.html               # Entrada da aplicação web
 │   └── assets/
 │       ├── css/styles.css       # Estilos responsivos
-│       └── js/app.js            # Comportamento e visualizações
+│       └── js/app.js            # Comportamento e visualizações (consome /api/*)
 ├── src/
 │   ├── __init__.py
-│   ├── extract.py               # Descoberta e download dos CSVs ONS
+│   ├── extract.py               # Descoberta CKAN, download seguro, revisões/hash e faixa de meses
 │   ├── transform.py             # Limpeza, tipagem e normalização
-│   ├── validate.py              # Regras de qualidade
+│   ├── validate.py              # Regras de qualidade e unicidade de chave
 │   ├── metrics.py               # Indicadores e agregações
-│   ├── database.py              # Escrita e consultas SQLite
-│   └── pipeline.py              # Orquestração das etapas
+│   ├── database.py              # Escrita idempotente e consultas PostgreSQL (Neon)
+│   └── pipeline.py              # Orquestração das etapas ETL
 ├── data/
 │   ├── raw/.gitkeep             # Downloads originais (não versionar CSVs grandes)
 │   └── processed/.gitkeep       # Saídas tratadas (não versionar arquivos grandes)
-├── database/.gitkeep            # Banco local não versionado
+├── database/.gitkeep            # Reservado para artefatos auxiliares locais não versionados
 ├── notebooks/
 │   └── 01_exploracao.ipynb
 ├── sql/
-│   └── schema.sql
+│   └── schema.sql               # DDL PostgreSQL (tabelas fato, dimensão, auditoria e agregações)
 ├── tests/
+│   ├── test_api.py
+│   ├── test_extract.py
 │   ├── test_transform.py
 │   ├── test_metrics.py
 │   └── test_quality.py
 ├── docs/
+│   ├── arquitetura_vercel.md
 │   ├── metodologia.md
 │   ├── dicionario_dados.md
+│   ├── extracao.md
 │   └── imagens/                 # Capturas do dashboard
 └── .github/workflows/
-    └── ci.yml                   # Testes automáticos (evolução)
+    └── ci.yml                   # Testes automáticos e ETL agendado (evolução)
 ```
 
 ### 5.2. Modelo de dados mínimo
@@ -287,7 +298,7 @@ pip freeze > requirements.txt
 - [x] Filtrar `id_estado == 'CE'` para o MVP.
 - [x] Manter `id_ons` como identificador e preservar `ceg` como texto (inclusive `-`).
 - [x] Verificar duplicidades na chave e decidir a regra de resolução **antes** de somar.
-- [x] Identificar nulos, valores negativos indevidos, códigos desconhecidos e datas fora do mês.
+- [x] Identificar nulos, valores negativos observados, códigos desconhecidos e datas fora do mês.
 - [ ] Criar sinalizadores de elegibilidade para cada indicador.
 - [ ] Calcular `duracao_horas` somente após validar granularidade; inicialmente, expectativa de 0,5 h.
 - [ ] Preservar a GNRa oficial e criar colunas de energia em MWh somente após confirmar documentalmente as unidades e regras descritas na seção 4.
@@ -310,20 +321,21 @@ pip freeze > requirements.txt
 
 **Critério de conclusão:** um notebook ou script produz os indicadores, os gráficos básicos e pelo menos três conclusões sustentadas por números verificáveis.
 
-### Fase 5 — Banco SQL (`sql/schema.sql` + `src/database.py`)
+### Fase 5 — Banco PostgreSQL (Neon / Vercel) e API FastAPI (`sql/schema.sql` + `src/database.py` + `api/index.py`)
 
-- [ ] Definir esquema das tabelas e chaves de unicidade.
-- [ ] Criar banco SQLite local em `database/renewable_energy.db`.
-- [ ] Carregar a base tratada de forma **idempotente** (executar duas vezes não deve duplicar linhas).
-- [ ] Escrever consultas para indicadores diários, mensais, motivos e ranking.
-- [ ] Criar índices para `din_instante`, `id_ons`, `id_estado` e códigos de restrição conforme necessidade.
-- [ ] Comparar os totais SQL com os resultados do Pandas.
+- [ ] Definir esquema PostgreSQL das tabelas (`fact_restricoes`, `dim_empreendimentos`, `etl_execucoes` e tabelas/views pré-agregadas) com chaves de unicidade e índices.
+- [ ] Provisionar o banco PostgreSQL gratuito (Neon via Vercel Storage) e configurar `DATABASE_URL` (pooled) e `DIRECT_DATABASE_URL` no `.env` local e na Vercel.
+- [ ] Implementar a carga idempotente (`ON CONFLICT ... DO UPDATE` / transação por período) da base tratada no PostgreSQL via `psycopg` v3 (executar duas vezes não deve duplicar linhas).
+- [ ] Escrever consultas SQL parametrizadas para indicadores diários, mensais, motivos, ranking e qualidade.
+- [ ] Criar índices para `instante`, `ons_id`, `estado_sigla` e códigos de restrição conforme necessidade.
+- [ ] Implementar os endpoints de leitura FastAPI em `api/index.py` (`/api/overview`, `/api/timeseries`, `/api/enterprises`, `/api/reasons`, `/api/quality`) usando `DATABASE_URL` pooled e sem importar `pandas`.
+- [ ] Comparar os totais SQL/API com os resultados do Pandas.
 
-**Critério de conclusão:** as consultas SQL reproduzem os mesmos totais do pipeline sem duplicações.
+**Critério de conclusão:** as consultas PostgreSQL e os endpoints FastAPI reproduzem os mesmos totais do pipeline sem duplicações e respondem bem abaixo do timeout de 10 s da Vercel.
 
-### Fase 6 — Dashboard web (`frontend/`)
+### Fase 6 — Dashboard web (`frontend/` hospedado na Vercel)
 
-- [ ] Definir e documentar o contrato de dados entre o pipeline Python e o frontend, sem permitir consultas diretas do navegador ao SQLite.
+- [ ] Definir e documentar o contrato JSON dos endpoints FastAPI (`/api/*`) consumidos pelo frontend, sem permitir acesso direto do navegador ao PostgreSQL.
 - [ ] Criar estrutura semântica e acessível em HTML com identidade visual, título, descrição e explicação do escopo.
 - [ ] Criar estilos responsivos em CSS para telas grandes e dispositivos móveis.
 - [ ] Implementar o comportamento e as visualizações em JavaScript, com estados explícitos de carregamento, erro e ausência de dados.
@@ -502,6 +514,8 @@ Manter esta seção atualizada conforme a implementação:
 | 2026-11-22 | Registrar como superada a premissa inicial de calcular déficit exploratório como indicador principal | O CSV revelou a GNRa oficial; o recálculo será mantido apenas para conciliação |
 | 2026-11-22 | Priorizar a GNRa publicada pelo ONS e usar o recálculo apenas para conciliação | O CSV possui `val_geracaonaorealizadaapurada`, ausente da premissa inicial do plano |
 | 2026-11-22 | Usar a API CKAN `package_show` para descobrir recursos mensais | A consulta oficial retornou um recurso único por período e formato, sem exigir URLs mensais manuais |
+| 2026-11-22 | Adotar Vercel + FastAPI + Neon PostgreSQL gratuito no lugar de SQLite local | Permite hospedar gratuitamente aplicação web e API real em produção com separação entre runtime leve (`requirements.txt`) e pipeline ETL (`requirements-etl.txt`) |
+| 2026-11-22 | Adotar commits em português e branch `teste` antes de PR na `main` | Padronizar fluxo de versionamento e revisão |
 | A definir | Convenção de fuso horário e duração do intervalo | Confirmar na exploração e documentação |
 
 ---

@@ -35,14 +35,16 @@ Estas regras valem para todo o repositório.
 - Prefira funções pequenas, tipadas e testáveis, com nomes e mensagens de erro claros.
 - Adicione ou atualize testes para cada regra de cálculo e correção de defeito.
 - Não quebre interfaces existentes sem explicar a necessidade e atualizar documentação e testes.
-- Não adicione dependências sem necessidade demonstrável e registro em `requirements.txt`.
+- Não adicione dependências sem necessidade demonstrável e registro explícito em `requirements.txt` (dependências leves da API serverless FastAPI + PostgreSQL na Vercel) ou `requirements-etl.txt` (dependências do pipeline ETL, análise e testes).
+- Mantenha a API serverless (`api/index.py`) estritamente leve: **nunca** importe `pandas` ou `pyarrow` dentro de `api/`, nem execute etapas de ETL dentro de rotas HTTP.
+- Todas as mensagens de commit devem ser escritas em português e todo avanço deve ser enviado primeiro para a branch `teste` antes de abrir PR para a `main`.
 - Antes de concluir uma alteração, execute os testes e verificações relevantes. Se algo não puder ser executado, informe exatamente o que faltou.
 
-## Frontend e dashboards
+## Frontend, API e dashboards
 
 - Construa a interface com HTML semântico, CSS responsivo e JavaScript, sem Streamlit.
-- Nunca escreva métricas analíticas reais diretamente no HTML ou JavaScript. O frontend deve consumir somente resultados produzidos pelo pipeline validado.
-- Não permita acesso direto do navegador ao arquivo SQLite. Defina um contrato explícito de dados ou API antes da integração.
+- Nunca escreva métricas analíticas reais diretamente no HTML ou JavaScript. O frontend deve consumir somente resultados produzidos pelo pipeline validado e servidos pela API FastAPI (`/api/*`).
+- Não permita acesso direto do navegador ao PostgreSQL. Toda consulta do frontend deve passar por endpoints explícitos em `api/index.py` usando `DATABASE_URL` (pooled) no lado do servidor.
 - Diferencie visualmente carregamento, ausência de dados e erro; ausência de registro nunca deve aparecer como zero.
 - Mantenha filtros utilizáveis por teclado, rótulos acessíveis e unidades visíveis em cartões, tabelas e gráficos.
 

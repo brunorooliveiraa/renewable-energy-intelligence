@@ -1,8 +1,15 @@
 # Renewable Energy Intelligence
 
-Projeto de engenharia e análise de dados para investigar restrições de geração eólica no Brasil a partir de dados abertos oficiais do ONS. O dashboard será uma aplicação web construída com HTML, CSS e JavaScript, alimentada por resultados validados do pipeline Python.
+Projeto de engenharia e análise de dados para investigar restrições de geração eólica (*constrained-off* / *curtailment*) no Brasil a partir de dados abertos oficiais do ONS.
 
-O escopo inicial é o Ceará, entre janeiro e março de 2025. O projeto está na Fase 0 (preparação do ambiente); pipeline, banco e dashboard ainda não foram implementados.
+A aplicação foi estruturada para rodar em produção gratuita na **Vercel**, com:
+- **Pipeline ETL Python** (`src/extract.py`, `src/transform.py`, `src/validate.py`, `src/metrics.py`, `src/database.py`) executado localmente ou via GitHub Actions;
+- **Banco de dados PostgreSQL gerenciado** (Neon integrado à Vercel Storage);
+- **API Serverless em FastAPI** (`api/index.py`) leve e sem dependência de `pandas`/`pyarrow`;
+- **Dashboard Web estático** (`frontend/`) em HTML5, CSS3 e JavaScript puro consumindo apenas rotas `/api/*`.
+
+**Escopo inicial do MVP:** Ceará (`CE`), 1º trimestre de 2025.  
+**Status atual:** Fases 0, 1 e 2 concluídas; Fase 3 em andamento (leitura CSV, padronização reversível, tipagem `instante`/MWmed, filtro UF, preservação de identificadores, unicidade de chave e auditoria de qualidade implementados e testados).
 
 ## Ambiente local
 
@@ -12,25 +19,32 @@ Requer Python 3.11 ou superior.
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install --upgrade pip
-python -m pip install -r requirements.txt
+python -m pip install -r requirements-etl.txt
 ```
 
-Consulte [plano.md](plano.md) para o escopo, a metodologia proposta e o roadmap.
+- `requirements.txt` contém apenas as dependências leves de runtime da API serverless na Vercel (`fastapi` e `psycopg[binary]`).
+- `requirements-etl.txt` inclui `-r requirements.txt` mais as dependências de engenharia de dados, análise e testes (`pandas`, `numpy`, `requests`, `pyarrow`, `pytest`, `jupyter`, `uvicorn`, `httpx`).
 
-## Interface web
+Copie `.env.example` para `.env` e configure `DATABASE_URL` (string *pooled* do Neon) e `DIRECT_DATABASE_URL` (string direta do Neon) quando for conectar ao PostgreSQL.
 
-A fundação do frontend está em `frontend/`. Nesta fase ela informa corretamente que ainda não há dados processados; gráficos e filtros serão implementados somente depois da validação das fontes, chaves e métricas.
-
-Para visualizar a página sem depender de extensões do editor:
+## Execução local (ETL, API e Testes)
 
 ```powershell
-python -m http.server 8000 --directory frontend
+# Executar a suíte de testes automatizados
+python -m pytest -q
+
+# Extrair dados brutos oficiais do ONS via API CKAN
+python -m src.extract --year 2025 --month 1 --source eolica
+
+# Subir a API FastAPI localmente (Swagger em http://localhost:8000/api/docs)
+uvicorn api.index:app --reload --port 8000
+
+# Visualizar o frontend estático isoladamente
+python -m http.server 8001 --directory frontend
 ```
 
-Depois, acesse `http://localhost:8000`.
+Consulte [plano.md](plano.md) para o roadmap completo e [docs/arquitetura_vercel.md](docs/arquitetura_vercel.md) para os detalhes de deploy na Vercel + Neon PostgreSQL.
 
 ## Aviso
 
 Este projeto não é um produto oficial do ONS ou da ANEEL. Nenhum resultado analítico deve ser tratado como oficial sem validação da metodologia e dos dados de origem.
-
-

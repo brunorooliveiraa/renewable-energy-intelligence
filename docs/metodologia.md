@@ -16,3 +16,19 @@ A conciliação inicial de todas as 5.692 linhas preenchidas no recorte do Cear�
 
 - **Fuso horário de `din_instante` (`instante`):** o ONS publica os patamares no formato exato `YYYY-MM-DD HH:MM:SS` sem sufixo de fuso horário. Como a documentação consultada ainda não formaliza um offset explícito no arquivo CSV, a função `src.transform.parse_instante_column` preserva a coluna como `datetime64[ns]` *timezone-naive* (política explícita `naive_ons_official_clock`), sem aplicar `tz_localize` nem deslocar horários silenciosamente. Datas fora do formato exato ou com sufixo inesperado (`Z`, `-03:00`) são rejeitadas explicitamente.
 - **Tipagem das medidas em MWmed:** a função `src.transform.convert_mwmed_columns` converte apenas as 5 colunas com unidade `MWmed` confirmada no dicionário oficial (`geracao_mwmed`, `geracao_limitada_mwmed`, `disponibilidade_mwmed`, `geracao_referencia_mwmed` e `geracao_referencia_final_mwmed`) para `Float64` anulável (IEEE-754 de 64 bits), sem arredondamento precoce e sem substituir nulos por zero. Strings com vírgula decimal ou valores não finitos (`nan`, `inf`, `-inf`) são rejeitados explicitamente. A coluna `geracao_nao_realizada_apurada` permanece fora desse grupo até confirmação documental de sua unidade.
+
+## Valores negativos nas medidas em MWmed
+
+O dicionário oficial vigente do conjunto, conferido em 22/11/2026 com a cópia
+versionada de mesmo SHA-256, determina piso zero somente para a GNRa: quando a
+diferença entre geração de referência e geração verificada é menor que zero, a
+GNRa é igual a zero. O documento não estabelece uma regra equivalente para as
+cinco medidas em MWmed convertidas nesta fase.
+
+Consequentemente, `src.validate.run_quality_checks` conta e expõe valores
+negativos nessas cinco colunas para auditoria, mas não os classifica como
+anomalias bloqueantes. Eles não são alterados, descartados nem substituídos por
+zero. Uma regra de rejeição só poderá ser adicionada se uma fonte oficial
+específica para o campo a sustentar.
+
+Fonte: [dicionário oficial do conjunto de restrições eólicas do ONS](https://ons-aws-prod-opendata.s3.amazonaws.com/dataset/restricao_coff_eolica_tm/DicionarioDados_RestricaoContrainedoff_UsiEolicas.json).

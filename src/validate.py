@@ -17,7 +17,9 @@ from src.transform import MWMED_INTERNAL_COLUMNS, SourceSchemaError
 CANDIDATE_KEY_COLUMNS: tuple[str, ...] = ("ons_id", "instante")
 VALID_RESTRICTION_REASON_CODES: frozenset[str] = frozenset({"REL", "CNF", "ENE", "PAR"})
 VALID_RESTRICTION_ORIGIN_CODES: frozenset[str] = frozenset({"LOC", "SIS"})
-NON_NEGATIVE_MWMED_COLUMNS: tuple[str, ...] = MWMED_INTERNAL_COLUMNS
+MWMED_NEGATIVE_AUDIT_COLUMNS: tuple[str, ...] = MWMED_INTERNAL_COLUMNS
+# Compatibilidade com consumidores anteriores; negativos não são mais bloqueantes.
+NON_NEGATIVE_MWMED_COLUMNS: tuple[str, ...] = MWMED_NEGATIVE_AUDIT_COLUMNS
 _MAX_ANOMALY_SAMPLES = 5
 _VALID_DUPLICATE_POLICIES: frozenset[str] = frozenset(
     {"raise", "report", "drop_exact_only"}
@@ -249,7 +251,8 @@ def run_quality_checks(
 
     Inspeciona:
     - contagem e percentual de nulos em todas as colunas;
-    - valores negativos indevidos nas 5 colunas MWmed (exigindo tipagem numérica);
+    - valores negativos observados nas 5 colunas MWmed (exigindo tipagem numérica),
+      sem classificá-los como bloqueantes na ausência de regra oficial específica;
     - códigos desconhecidos de razão (fora de ``REL/CNF/ENE/PAR``) e origem
       (fora de ``LOC/SIS``), além de inconsistências cruzadas entre razão e origem;
     - datas fora do mês/ano esperado (quando ``expected_year`` e ``expected_month``
@@ -308,7 +311,7 @@ def run_quality_checks(
         "instante",
         "restricao_razao_codigo",
         "restricao_origem_codigo",
-        *NON_NEGATIVE_MWMED_COLUMNS,
+        *MWMED_NEGATIVE_AUDIT_COLUMNS,
     )
     missing_cols = [col for col in required_columns if col not in dataframe.columns]
     if missing_cols:
@@ -324,7 +327,7 @@ def run_quality_checks(
             f"(naive) antes da validação (dtype atual: {dataframe['instante'].dtype})."
         )
 
-    for col in NON_NEGATIVE_MWMED_COLUMNS:
+    for col in MWMED_NEGATIVE_AUDIT_COLUMNS:
         if not pd.api.types.is_numeric_dtype(
             dataframe[col].dtype
         ) or pd.api.types.is_bool_dtype(dataframe[col].dtype):
@@ -345,9 +348,12 @@ def run_quality_checks(
             round((count / total_rows) * 100.0, 4) if total_rows > 0 else 0.0
         )
 
-    # 2) Valores negativos indevidos nas colunas MWmed (ignorando NA).
+    # 2) Valores negativos observados nas colunas MWmed (ignorando NA).
+    # O dicionário oficial só determina piso zero para a GNRa, que não integra
+    # este grupo. Sem regra equivalente para estas cinco medidas, a ocorrência
+    # é registrada para auditoria, mas não bloqueia o lote.
     negative_counts: dict[str, int] = {}
-    for col in NON_NEGATIVE_MWMED_COLUMNS:
+    for col in MWMED_NEGATIVE_AUDIT_COLUMNS:
         neg_mask = (dataframe[col] < 0).fillna(False)
         negative_counts[col] = int(neg_mask.sum())
 
@@ -406,10 +412,8 @@ def run_quality_checks(
                 for ts in instante_series[out_mask].iloc[:_MAX_ANOMALY_SAMPLES]
             )
 
-    total_negatives = sum(negative_counts.values())
     has_blocking_anomalies = (
-        total_negatives > 0
-        or unknown_reason_rows > 0
+        unknown_reason_rows > 0
         or unknown_origin_rows > 0
         or out_of_month_rows > 0
     )
@@ -436,9 +440,6 @@ def run_quality_checks(
 
     if strict and has_blocking_anomalies:
         details: list[str] = []
-        if total_negatives > 0:
-            neg_detail = {k: v for k, v in negative_counts.items() if v > 0}
-            details.append(f"valores negativos={neg_detail}")
         if unknown_reason_rows > 0:
             details.append(
                 f"códigos de razão desconhecidos={list(unknown_reason_codes)} "

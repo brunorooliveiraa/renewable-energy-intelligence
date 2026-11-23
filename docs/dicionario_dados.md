@@ -100,7 +100,9 @@ código, é testado contra colisões e pode ser invertido sem perda de informaç
 - Cada `id_ons` possui 1.488 linhas, de 00:00 de 1º de janeiro a 23:30 de 31 de janeiro.
 - Todos os passos consecutivos observados por `id_ons` têm 30 minutos.
 - Nenhuma duplicidade exata ou na chave candidata.
-- Nenhum valor negativo nas colunas inferidas como numéricas.
+- Nenhum valor negativo foi observado nas colunas inferidas como numéricas no
+  arquivo de janeiro de 2025. Esta constatação descreve o lote analisado e não
+  constitui regra de rejeição para outros meses.
 - Quatro identificadores possuem CEG; 15 são conjuntos representados por `-`, totalizando 22.320 linhas sem CEG individual.
 
 ### Restrições observadas

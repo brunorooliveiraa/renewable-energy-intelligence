@@ -194,6 +194,24 @@ def test_run_quality_checks_detects_negatives_unknown_codes_and_out_of_month() -
         run_quality_checks(df, expected_year=2025, expected_month=1, strict=True)
 
 
+def test_run_quality_checks_reports_mwmed_negatives_without_blocking() -> None:
+    """Negativos em MWmed são evidência, não erro sem regra oficial específica."""
+    df = _typed_synthetic_dataframe(
+        {
+            "geracao_mwmed": ["-5.2"],
+            "geracao_limitada_mwmed": ["-1.0"],
+        }
+    )
+
+    report = run_quality_checks(
+        df, expected_year=2025, expected_month=1, strict=True
+    )
+
+    assert report["negative_value_counts"]["geracao_mwmed"] == 1
+    assert report["negative_value_counts"]["geracao_limitada_mwmed"] == 1
+    assert report["has_blocking_anomalies"] is False
+
+
 def test_run_quality_checks_rejects_untyped_columns_and_partial_period_args() -> None:
     df = _typed_synthetic_dataframe()
 

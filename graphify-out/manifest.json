@@ -12,10 +12,10 @@
     "semantic_hash": "618d8f0526ad23e5db69ef384d6cbdd4"
   },
   "sql/schema.sql": {
-    "mtime": 1795385690.4402523,
-    "seen": 1795389290.9474015,
-    "ast_hash": "cb8e46a16edaffa3d4db4e9507989a63",
-    "semantic_hash": "cb8e46a16edaffa3d4db4e9507989a63"
+    "mtime": 1795397902.4274778,
+    "seen": 1795398196.2817876,
+    "ast_hash": "e11ca66cbd36a03cfa8a8308488dbe1f",
+    "semantic_hash": "e11ca66cbd36a03cfa8a8308488dbe1f"
   },
   "src/__init__.py": {
     "mtime": 1795385678.521852,
@@ -24,10 +24,10 @@
     "semantic_hash": "a9707c6229bd218ec7e6336bb0bf5376"
   },
   "src/database.py": {
-    "mtime": 1795385682.358117,
-    "seen": 1795389290.9474015,
-    "ast_hash": "7f603b1d29914086d06445fff63a0c40",
-    "semantic_hash": "7f603b1d29914086d06445fff63a0c40"
+    "mtime": 1795397901.1524298,
+    "seen": 1795398196.2817876,
+    "ast_hash": "69620a6b7278a5de43dde422d03c6466",
+    "semantic_hash": "69620a6b7278a5de43dde422d03c6466"
   },
   "src/extract.py": {
     "mtime": 1795392838.5528762,
@@ -54,10 +54,10 @@
     "semantic_hash": "e0e531cc4818856c4e716c3225e7a672"
   },
   "src/validate.py": {
-    "mtime": 1795396338.6066492,
-    "seen": 1795396397.903668,
-    "ast_hash": "92df852004210c8b7634a6f40a47ed43",
-    "semantic_hash": "92df852004210c8b7634a6f40a47ed43"
+    "mtime": 1795397004.526697,
+    "seen": 1795398196.2817876,
+    "ast_hash": "423eafe35378b8ae20adc4751fcd60d7",
+    "semantic_hash": "423eafe35378b8ae20adc4751fcd60d7"
   },
   "tests/test_extract.py": {
     "mtime": 1795392857.8812013,
@@ -72,28 +72,28 @@
     "semantic_hash": "28539cd619ee50e6bdc58a666af641af"
   },
   "tests/test_structure.py": {
-    "mtime": 1795386240.110852,
-    "seen": 1795389290.9474015,
-    "ast_hash": "7d5ebea16dda5ac377e5b901fb798207",
-    "semantic_hash": "7d5ebea16dda5ac377e5b901fb798207"
+    "mtime": 1795397964.150658,
+    "seen": 1795398196.2817876,
+    "ast_hash": "df55e0bd9ad9c9e206234bcd97651667",
+    "semantic_hash": "df55e0bd9ad9c9e206234bcd97651667"
   },
   "AGENTS.md": {
-    "mtime": 1795395924.380276,
-    "seen": 1795396161.2391536,
-    "ast_hash": "fd8d86cae29a3a9ad248e8fc18d27e0c",
-    "semantic_hash": "fd8d86cae29a3a9ad248e8fc18d27e0c"
+    "mtime": 1795397899.3826053,
+    "seen": 1795398196.2817876,
+    "ast_hash": "867c5611bbceca2afcff57f742821840",
+    "semantic_hash": "867c5611bbceca2afcff57f742821840"
   },
   "README.md": {
-    "mtime": 1795395927.7047365,
-    "seen": 1795396161.2391536,
-    "ast_hash": "a9c60b362f339ca083276131aa0745d1",
-    "semantic_hash": "a9c60b362f339ca083276131aa0745d1"
+    "mtime": 1795397903.7868786,
+    "seen": 1795398196.2817876,
+    "ast_hash": "a31bfec99fb877e73d14a6a6f43b9e66",
+    "semantic_hash": "a31bfec99fb877e73d14a6a6f43b9e66"
   },
   "docs/dicionario_dados.md": {
-    "mtime": 1795394109.1370435,
-    "seen": 1795394641.1921313,
-    "ast_hash": "60395021d30da8252c126213744d57d0",
-    "semantic_hash": "60395021d30da8252c126213744d57d0"
+    "mtime": 1795396957.1815467,
+    "seen": 1795398196.2817876,
+    "ast_hash": "1b6239cd03b3a8c8cbe4c02f6de46f56",
+    "semantic_hash": "1b6239cd03b3a8c8cbe4c02f6de46f56"
   },
   "docs/extracao.md": {
     "mtime": 1795392859.3989644,
@@ -102,10 +102,10 @@
     "semantic_hash": "92dcc42fb98fd2b627587c4dfd507468"
   },
   "docs/metodologia.md": {
-    "mtime": 1795394469.1042917,
-    "seen": 1795394641.1921313,
-    "ast_hash": "f96b82345423788837ee7ca02709c6db",
-    "semantic_hash": "f96b82345423788837ee7ca02709c6db"
+    "mtime": 1795396956.3546238,
+    "seen": 1795398196.2817876,
+    "ast_hash": "35912c095b56244fdbabe08dea2c2a83",
+    "semantic_hash": "35912c095b56244fdbabe08dea2c2a83"
   },
   "docs/referencias/ons/README.md": {
     "mtime": 1795387287.467439,
@@ -120,16 +120,16 @@
     "semantic_hash": "04b7ca9dfcde1042f65c6a14b9172043"
   },
   "plano.md": {
-    "mtime": 1795395999.5269432,
-    "seen": 1795396161.2391536,
-    "ast_hash": "d3cd0fe3891400309faadb490a786f9e",
-    "semantic_hash": "d3cd0fe3891400309faadb490a786f9e"
+    "mtime": 1795397942.1356113,
+    "seen": 1795398196.2817876,
+    "ast_hash": "587feb3f07d7c9eb6d2bc6bdafe93a4c",
+    "semantic_hash": "587feb3f07d7c9eb6d2bc6bdafe93a4c"
   },
   "requirements.txt": {
-    "mtime": 1795386189.2451532,
-    "seen": 1795389290.9474015,
-    "ast_hash": "5b60b314c4e33b50c36ed4c7158a8899",
-    "semantic_hash": "5b60b314c4e33b50c36ed4c7158a8899"
+    "mtime": 1795397842.6422498,
+    "seen": 1795398196.2817876,
+    "ast_hash": "15f7028f86270c679c02497f6fa45c0a",
+    "semantic_hash": "15f7028f86270c679c02497f6fa45c0a"
   },
   "docs/referencias/ons/DicionarioDados_RestricaoContrainedoff_UsiEolicas.pdf": {
     "mtime": 1795387430.2413433,
@@ -144,9 +144,45 @@
     "semantic_hash": "368ced328930d1f7328165a8024a4482"
   },
   "tests/test_quality.py": {
-    "mtime": 1795396354.9780293,
-    "seen": 1795396397.903668,
-    "ast_hash": "cd416d098c25e96c1bc120a68c881df1",
-    "semantic_hash": "cd416d098c25e96c1bc120a68c881df1"
+    "mtime": 1795396876.4595163,
+    "seen": 1795398196.2817876,
+    "ast_hash": "c01a2f861e28cbf100c78b7a9192e137",
+    "semantic_hash": "c01a2f861e28cbf100c78b7a9192e137"
+  },
+  "api/__init__.py": {
+    "mtime": 1795397849.73707,
+    "seen": 1795398196.2817876,
+    "ast_hash": "dedcc29d26e0fe13cc986d9fea41ba63",
+    "semantic_hash": "dedcc29d26e0fe13cc986d9fea41ba63"
+  },
+  "api/index.py": {
+    "mtime": 1795397848.198801,
+    "seen": 1795398196.2817876,
+    "ast_hash": "e8138ce13b9c4bd4f51e51097f2bb54e",
+    "semantic_hash": "e8138ce13b9c4bd4f51e51097f2bb54e"
+  },
+  "tests/test_api.py": {
+    "mtime": 1795397961.9735372,
+    "seen": 1795398196.2817876,
+    "ast_hash": "60b3b1c9faf6b9a10bb48b208d6df10e",
+    "semantic_hash": "60b3b1c9faf6b9a10bb48b208d6df10e"
+  },
+  "vercel.json": {
+    "mtime": 1795397847.106133,
+    "seen": 1795398196.2817876,
+    "ast_hash": "d8c10814714256dc2491df856cfc1cde",
+    "semantic_hash": "d8c10814714256dc2491df856cfc1cde"
+  },
+  "docs/arquitetura_vercel.md": {
+    "mtime": 1795397872.9303367,
+    "seen": 1795398196.2817876,
+    "ast_hash": "a6735dae05c269dc6b661b12d95f54d1",
+    "semantic_hash": "a6735dae05c269dc6b661b12d95f54d1"
+  },
+  "requirements-etl.txt": {
+    "mtime": 1795397844.4350343,
+    "seen": 1795398196.2817876,
+    "ast_hash": "d27f1f1bf50ff8239f0c01cf09555108",
+    "semantic_hash": "d27f1f1bf50ff8239f0c01cf09555108"
   }
 }
