@@ -36,10 +36,10 @@
     "semantic_hash": "04fd2d95430107adfa158d4311b0f6f6"
   },
   "src/metrics.py": {
-    "mtime": 1795385681.5861516,
-    "seen": 1795389290.9474015,
-    "ast_hash": "13d227822ad62df284fc6b220aa47804",
-    "semantic_hash": "13d227822ad62df284fc6b220aa47804"
+    "mtime": 1795399691.033779,
+    "seen": 1795399786.6812017,
+    "ast_hash": "db74d759e7b5ca57f87a342bb3e3af00",
+    "semantic_hash": "db74d759e7b5ca57f87a342bb3e3af00"
   },
   "src/pipeline.py": {
     "mtime": 1795385683.1235213,
@@ -184,5 +184,11 @@
     "seen": 1795398196.2817876,
     "ast_hash": "d27f1f1bf50ff8239f0c01cf09555108",
     "semantic_hash": "d27f1f1bf50ff8239f0c01cf09555108"
+  },
+  "tests/test_metrics.py": {
+    "mtime": 1795399721.8043904,
+    "seen": 1795399786.6812017,
+    "ast_hash": "e837b0af588eab1b9e595ed9ae835640",
+    "semantic_hash": "e837b0af588eab1b9e595ed9ae835640"
   }
 }

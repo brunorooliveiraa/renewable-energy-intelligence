@@ -309,9 +309,9 @@ pip freeze > requirements.txt
 
 ### Fase 4 — Análise exploratória e indicadores (`src/metrics.py`)
 
-- [ ] Contar linhas por mês, dia, hora, razão e origem de restrição.
-- [ ] Criar série diária e mensal da geração verificada em MWh.
-- [ ] Agregar a GNRa oficial somente após confirmar sua unidade e os registros elegíveis; manter uma conciliação separada com geração e referência.
+- [x] Contar linhas por mês, dia, hora, razão e origem de restrição.
+- [x] Criar série diária e mensal da geração verificada em MWh.
+- [x] Agregar a GNRa oficial somente após confirmar sua unidade e os registros elegíveis; manter uma conciliação separada com geração e referência.
 - [ ] Contabilizar a cobertura das linhas elegíveis e as linhas sem referência.
 - [ ] Criar ranking por `id_ons` + nome de exibição, indicando usina ou conjunto quando possível.
 - [ ] Comparar razões `REL`, `CNF`, `ENE`, `PAR` e origens `LOC`, `SIS`.
