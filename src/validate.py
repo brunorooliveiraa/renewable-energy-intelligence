@@ -268,9 +268,9 @@ def run_quality_checks(
         Relatório ``QualityCheckReport`` completo.
 
     Raises:
-        TypeError: Quando ``dataframe`` não é ``pd.DataFrame``.
+        TypeError: Quando ``dataframe`` não é ``pd.DataFrame`` ou ``strict`` não é ``bool``.
         ValueError: Quando ``expected_year``/``expected_month`` são inválidos ou
-            fornecidos parcialmente, ou quando ``strict`` não é booleano.
+            fornecidos parcialmente.
         SourceSchemaError: Quando colunas obrigatórias para auditoria estão
             ausentes ou ainda não foram convertidas para o tipo esperado.
         DataQualityError: Quando ``strict=True`` e há anomalias bloqueantes.

@@ -558,18 +558,19 @@ def test_preserve_operational_identifiers_rejects_null_or_blank_ons_id() -> None
 def test_add_eligibility_flags_classifies_all_indicators_without_dropping_rows() -> None:
     raw = _sample_standardized_dataframe(
         {
-            "ons_id": ["CE_01", "CE_02", "CE_03", "CE_04"],
-            "ceg": ["-", "EOL.CV.CE.0001-0.01", pd.NA, "-"],
+            "ons_id": ["CE_01", "CE_02", "CE_03", "CE_04", "CE_05"],
+            "ceg": ["-", "EOL.CV.CE.0001-0.01", pd.NA, "-", "-"],
             "instante": [
                 "2025-01-01 00:00:00",
                 "2025-01-01 00:30:00",
                 "2025-01-01 01:00:00",
                 "2025-01-01 01:30:00",
+                "2025-01-01 02:00:00",
             ],
-            "geracao_mwmed": ["100.0", "-5.0", pd.NA, "50.0"],
-            "geracao_referencia_final_mwmed": ["120.0", pd.NA, pd.NA, "60.0"],
-            "restricao_razao_codigo": ["REL", "ENE", "XYZ", pd.NA],
-            "geracao_nao_realizada_apurada": ["20.0", "10.0", "5.0", "10.0"],
+            "geracao_mwmed": ["100.0", "-5.0", pd.NA, "50.0", "40.0"],
+            "geracao_referencia_final_mwmed": ["120.0", pd.NA, pd.NA, "-1.0", "45.0"],
+            "restricao_razao_codigo": ["REL", "ENE", "XYZ", pd.NA, "ENE"],
+            "geracao_nao_realizada_apurada": ["20.0", "10.0", "5.0", "10.0", "-1.0"],
         }
     )
     typed, _ = parse_instante_column(raw)
@@ -577,21 +578,23 @@ def test_add_eligibility_flags_classifies_all_indicators_without_dropping_rows()
 
     flagged, report = add_eligibility_flags(typed)
 
-    assert len(flagged) == 4
+    assert len(flagged) == 5
     assert "elegivel_geracao_verificada" not in typed.columns
-    # Valores negativos finitos sao elegiveis (dicionario ONS nao estabelece piso zero).
-    assert list(flagged["elegivel_geracao_verificada"]) == [True, True, False, True]
-    assert list(flagged["elegivel_referencia_final"]) == [True, False, False, True]
-    assert list(flagged["possui_restricao_classificada"]) == [True, True, False, False]
-    assert list(flagged["elegivel_gnra"]) == [True, True, False, False]
-    assert list(flagged["elegivel_enriquecimento_aneel"]) == [False, True, False, False]
+    # Valores negativos finitos sao elegiveis em MWmed (dicionario ONS nao estabelece piso zero).
+    assert list(flagged["elegivel_geracao_verificada"]) == [True, True, False, True, True]
+    assert list(flagged["elegivel_referencia_final"]) == [True, False, False, True, True]
+    assert list(flagged["possui_restricao_classificada"]) == [True, True, False, False, True]
+    # GNRa negativa e preservada para auditoria, mas marcada como inelegivel (dicionario ONS).
+    assert list(flagged["elegivel_gnra"]) == [True, True, False, False, False]
+    assert flagged["geracao_nao_realizada_apurada"].iloc[4] == "-1.0"
+    assert list(flagged["elegivel_enriquecimento_aneel"]) == [False, True, False, False, False]
     # Preserva GNRa original como string sem converter unidade.
     assert isinstance(flagged["geracao_nao_realizada_apurada"].dtype, pd.StringDtype)
     assert report == {
-        "total_rows": 4,
-        "elegivel_geracao_verificada_rows": 3,
-        "elegivel_referencia_final_rows": 2,
-        "possui_restricao_classificada_rows": 2,
+        "total_rows": 5,
+        "elegivel_geracao_verificada_rows": 4,
+        "elegivel_referencia_final_rows": 3,
+        "possui_restricao_classificada_rows": 3,
         "elegivel_gnra_rows": 2,
         "elegivel_enriquecimento_aneel_rows": 1,
     }
@@ -860,3 +863,32 @@ def test_atomic_writers_clean_part_files_on_io_failure(
 
     assert not report_target.exists()
     assert list(tmp_path.glob("*.part")) == []
+
+
+def test_public_transform_functions_raise_type_error_for_invalid_argument_types() -> None:
+    from src.transform import build_quality_report_filepath, write_quality_report
+
+    df = _sample_standardized_dataframe({"ons_id": ["CE_01"], "instante": ["2025-01-01 00:00:00"]})
+    typed, _ = parse_instante_column(df)
+    typed, _ = convert_mwmed_columns(typed)
+
+    with pytest.raises(TypeError, match="file_path"):
+        read_raw_ons_csv(123)  # type: ignore[arg-type]
+    with pytest.raises(TypeError, match="strict"):
+        parse_instante_column(df, strict="sim")  # type: ignore[arg-type]
+    with pytest.raises(TypeError, match="strict"):
+        convert_mwmed_columns(df, strict="sim")  # type: ignore[arg-type]
+    with pytest.raises(TypeError, match="allow_empty"):
+        filter_by_state(df, "CE", allow_empty="sim")  # type: ignore[arg-type]
+    with pytest.raises(TypeError, match="strict_ons_id"):
+        preserve_operational_identifiers(df, strict_ons_id="sim")  # type: ignore[arg-type]
+    with pytest.raises(TypeError, match="strict"):
+        validate_granularity_and_add_duration(typed, strict="sim")  # type: ignore[arg-type]
+    with pytest.raises(TypeError, match="output_dir"):
+        build_processed_filepath("CE", 2025, 1, output_dir=123)  # type: ignore[arg-type]
+    with pytest.raises(TypeError, match="parquet_path"):
+        build_quality_report_filepath(123)  # type: ignore[arg-type]
+    with pytest.raises(TypeError, match="destination"):
+        write_processed_parquet(typed, 123)  # type: ignore[arg-type]
+    with pytest.raises(TypeError, match="report_path"):
+        write_quality_report({"status": "ok"}, 123)  # type: ignore[arg-type]

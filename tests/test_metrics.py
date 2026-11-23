@@ -361,3 +361,42 @@ def test_identify_peak_restriction_periods_orders_days_and_hours_and_validates_t
     for bad_top_n in (0, -1, True):
         with pytest.raises(ValueError, match="top_n"):
             identify_peak_restriction_periods(df, top_n=bad_top_n)  # type: ignore[arg-type]
+
+
+def test_generate_basic_phase4_charts_distinguishes_missing_zero_positive_and_negative(
+    tmp_path: Path,
+) -> None:
+    df = _make_phase3_synthetic_df(
+        {
+            "ons_id": ["CE_01", "CE_01", "CE_01", "CE_01"],
+            "instante": [
+                "2025-01-01 00:00:00",
+                "2025-01-02 00:00:00",
+                "2025-01-03 00:00:00",
+                "2025-01-04 00:00:00",
+            ],
+            "geracao_mwmed": ["100.0", pd.NA, "0.0", "-10.0"],
+            "geracao_referencia_final_mwmed": [pd.NA, pd.NA, pd.NA, pd.NA],
+            "restricao_razao_codigo": ["REL", pd.NA, pd.NA, pd.NA],
+            "restricao_origem_codigo": ["SIS", pd.NA, pd.NA, pd.NA],
+            "geracao_nao_realizada_apurada": ["10.0", pd.NA, pd.NA, pd.NA],
+        }
+    )
+
+    outputs = generate_basic_phase4_charts(df, tmp_path)
+    daily_svg = outputs["geracao_diaria_mwh"].read_text(encoding="utf-8")
+
+    assert 'data-state="positive"' in daily_svg
+    assert ">50.00<" in daily_svg
+    assert 'data-state="missing"' in daily_svg
+    assert ">Sem dados<" in daily_svg
+    assert 'data-state="zero"' in daily_svg
+    assert ">0.00<" in daily_svg
+    assert 'data-state="negative"' in daily_svg
+    assert ">-5.00<" in daily_svg
+    assert 'width="0.00"' not in daily_svg
+
+    with pytest.raises(TypeError, match="include_zero_official_codes"):
+        summarize_reasons_and_origins(df, include_zero_official_codes="sim")  # type: ignore[arg-type]
+    with pytest.raises(TypeError, match="output_dir"):
+        generate_basic_phase4_charts(df, 123)  # type: ignore[arg-type]

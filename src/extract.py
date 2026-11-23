@@ -209,6 +209,7 @@ def download_resource_file(
         hash SHA-256 em maiúsculas e quantidade de tentativas utilizadas).
 
     Raises:
+        TypeError: Quando ``destination`` não é ``Path``/``str`` ou ``overwrite`` não é ``bool``.
         ValueError: Quando qualquer argumento de entrada é inválido.
         FileExistsError: Quando ``destination`` já existe e ``overwrite=False``.
         ResourceDownloadError: Quando o download falha após as tentativas
@@ -431,6 +432,7 @@ def build_metadata_filepath(raw_filepath: Path | str) -> Path:
         Objeto ``Path`` para o manifesto de metadados correspondente.
 
     Raises:
+        TypeError: Quando ``raw_filepath`` não é ``Path`` nem ``str``.
         ValueError: Quando ``raw_filepath`` é vazio ou inválido.
     """
 
@@ -468,6 +470,7 @@ def build_archived_revision_filepath(
         Caminho ``Path`` para o arquivo arquivado da revisão.
 
     Raises:
+        TypeError: Quando ``raw_filepath`` não é ``Path`` nem ``str``.
         ValueError: Quando ``raw_filepath`` ou ``sha256`` é inválido.
     """
 
@@ -509,6 +512,7 @@ def compute_file_sha256(
         Tupla ``(size_bytes, sha256_uppercase)``.
 
     Raises:
+        TypeError: Quando ``file_path`` não é ``Path`` nem ``str``.
         ValueError: Quando ``file_path`` ou ``chunk_size`` é inválido, ou quando
             o caminho aponta para um diretório.
         FileNotFoundError: Quando o arquivo não existe.
@@ -552,6 +556,7 @@ def read_collection_metadata(metadata_path: Path | str) -> CollectionMetadata | 
         Dicionário ``CollectionMetadata`` validado ou ``None`` se o arquivo não existir.
 
     Raises:
+        TypeError: Quando ``metadata_path`` não é ``Path`` nem ``str``.
         ValueError: Quando o caminho é inválido.
         ResourceDownloadError: Quando o arquivo existe, mas contém JSON inválido
             ou campos obrigatórios ausentes/corrompidos.
@@ -595,6 +600,7 @@ def write_collection_metadata(
         Caminho ``Path`` onde o arquivo foi gravado.
 
     Raises:
+        TypeError: Quando ``metadata_path`` não é ``Path`` nem ``str``.
         ValueError: Quando ``metadata_path`` é inválido.
         ResourceDownloadError: Quando ``metadata`` não cumpre o contrato esperado.
     """
@@ -685,6 +691,7 @@ def download_monthly_resource(
         já correspondia à mesma versão e hash verificados).
 
     Raises:
+        TypeError: Quando ``output_dir`` não é ``Path``/``str`` ou ``overwrite`` não é ``bool``.
         ValueError: Quando qualquer argumento de entrada é inválido.
         ResourceRevisionConflictError: Quando o arquivo local já existe,
             ``overwrite=False`` e há conflito de versão/revisão ou ausência de
@@ -846,6 +853,7 @@ def download_period_range(
         Lista ordenada de ``MonthlyExtractionReport`` com um item por mês da faixa.
 
     Raises:
+        TypeError: Quando ``output_dir`` não é ``Path``/``str`` ou ``overwrite``/``allow_missing`` não são ``bool``.
         ValueError: Quando os limites de período ou parâmetros são inválidos.
         ResourceNotFoundError: Quando não há recurso compatível para algum período
             e formato solicitados e ``allow_missing=False``.

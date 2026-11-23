@@ -277,3 +277,9 @@ def test_quality_checks_and_key_uniqueness_on_verified_january_ce_subset() -> No
     )
     assert quality_report["observed_min_timestamp"] == "2025-01-01 00:00:00"
     assert quality_report["observed_max_timestamp"] == "2025-01-31 23:30:00"
+
+
+def test_run_quality_checks_raises_type_error_for_non_bool_strict() -> None:
+    df = pd.DataFrame({"ons_id": ["CE_01"]})
+    with pytest.raises(TypeError, match="strict"):
+        run_quality_checks(df, strict="sim")  # type: ignore[arg-type]

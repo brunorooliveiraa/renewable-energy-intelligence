@@ -357,7 +357,8 @@ def read_raw_ons_csv(file_path: Path | str) -> pd.DataFrame:
     como ausentes. UTF-8 com ou sem BOM é aceito explicitamente.
 
     Raises:
-        ValueError: Quando o caminho é inválido.
+        TypeError: Quando ``file_path`` não é ``Path`` nem ``str``.
+        ValueError: Quando o caminho é uma string vazia ou aponta para diretório.
         FileNotFoundError: Quando o arquivo não existe.
         SourceSchemaError: Quando o cabeçalho mudou ou possui duplicidades.
         RawCsvReadError: Quando a codificação ou a estrutura CSV é inválida.
@@ -447,8 +448,8 @@ def parse_instante_column(
         Tupla ``(converted_dataframe, report)``.
 
     Raises:
-        TypeError: Quando ``dataframe`` não é ``pd.DataFrame``.
-        ValueError: Quando ``column`` ou ``strict`` é inválido.
+        TypeError: Quando ``dataframe`` não é ``pd.DataFrame`` ou ``strict`` não é ``bool``.
+        ValueError: Quando ``column`` é inválido.
         SourceSchemaError: Quando ``column`` não existe no ``DataFrame``.
         TimestampConversionError: Quando ``strict=True`` e há valores inválidos
             ou quando a coluna já contém timestamps com fuso horário inesperado.
@@ -573,8 +574,8 @@ def convert_mwmed_columns(
         Tupla ``(converted_dataframe, reports_by_column)``.
 
     Raises:
-        TypeError: Quando ``dataframe`` não é ``pd.DataFrame``.
-        ValueError: Quando ``columns`` é vazio/inválido ou ``strict`` não é bool.
+        TypeError: Quando ``dataframe`` não é ``pd.DataFrame`` ou ``strict`` não é ``bool``.
+        ValueError: Quando ``columns`` é vazio/inválido.
         SourceSchemaError: Quando alguma coluna solicitada não existe no ``DataFrame``.
         NumericConversionError: Quando ``strict=True`` e há valores inválidos,
             vírgula decimal, infinitos ou ``NaN`` literais em texto.
@@ -657,8 +658,8 @@ def filter_by_state(
         Tupla ``(filtered_dataframe, report)``.
 
     Raises:
-        TypeError: Quando ``dataframe`` não é ``pd.DataFrame``.
-        ValueError: Quando ``state_code``, ``column`` ou ``allow_empty`` é inválido.
+        TypeError: Quando ``dataframe`` não é ``pd.DataFrame`` ou ``allow_empty`` não é ``bool``.
+        ValueError: Quando ``state_code`` ou ``column`` é inválido.
         SourceSchemaError: Quando ``column`` não existe no ``DataFrame``.
         EmptyFilterResultError: Quando ``matched_rows == 0`` e ``allow_empty=False``.
     """
@@ -743,8 +744,8 @@ def preserve_operational_identifiers(
         Tupla ``(normalized_dataframe, report)``.
 
     Raises:
-        TypeError: Quando ``dataframe`` não é ``pd.DataFrame``.
-        ValueError: Quando nomes de coluna ou ``strict_ons_id`` são inválidos.
+        TypeError: Quando ``dataframe`` não é ``pd.DataFrame`` ou ``strict_ons_id`` não é ``bool``.
+        ValueError: Quando nomes de coluna são inválidos ou iguais.
         SourceSchemaError: Quando ``ons_id_column`` ou ``ceg_column`` está ausente.
         IdentifierNormalizationError: Quando ``strict_ons_id=True`` e há registros
             com ``ons_id`` nulo ou em branco.
@@ -830,7 +831,9 @@ def add_eligibility_flags(
       domínio oficial ``{REL, CNF, ENE, PAR}``.
     - ``elegivel_gnra``: ``possui_restricao_classificada`` e
       ``geracao_nao_realizada_apurada`` preenchida com número decimal finito
-      (preservando o valor bruto da GNRa sem converter para MWh).
+      ``>= 0`` (piso zero determinado pelo dicionário oficial do ONS; valores
+      negativos publicados são preservados para auditoria sem correção
+      silenciosa para zero, mas marcados como inelegíveis).
     - ``elegivel_enriquecimento_aneel``: ``ceg`` preenchido, não vazio e
       diferente de ``'-'`` (conjuntos de usinas não são elegíveis).
 
@@ -922,7 +925,10 @@ def add_eligibility_flags(
         source_column="val_geracaonaorealizadaapurada",
     )
     elegivel_gnra = (
-        valid_key & possui_restricao_classificada & (~gnra_numeric.isna())
+        valid_key
+        & possui_restricao_classificada
+        & (~gnra_numeric.isna())
+        & (gnra_numeric >= 0).fillna(False)
     )
 
     ceg_series = result["ceg"].astype("string")
@@ -985,8 +991,8 @@ def validate_granularity_and_add_duration(
         Tupla ``(dataframe_with_duration, report)``.
 
     Raises:
-        TypeError: Quando ``dataframe`` não é ``pd.DataFrame``.
-        ValueError: Quando ``expected_step_minutes`` ou ``strict`` é inválido.
+        TypeError: Quando ``dataframe`` não é ``pd.DataFrame`` ou ``strict`` não é ``bool``.
+        ValueError: Quando ``expected_step_minutes`` é inválido.
         SourceSchemaError: Quando ``ons_id``/``instante`` estão ausentes,
             duplicados ou não tipados.
         GranularityValidationError: Quando ``strict=True`` e a granularidade

@@ -1172,3 +1172,41 @@ def test_cli_main_returns_nonzero_and_prints_error_for_missing_month(
     assert exit_code == 1
     assert "Erro na extração:" in captured.err
     assert "período=2025-02" in captured.err
+
+
+def test_public_extract_functions_raise_type_error_for_invalid_argument_types(
+    tmp_path: Path,
+) -> None:
+    session = FakeDownloadSession([])
+
+    with pytest.raises(TypeError, match="overwrite"):
+        download_resource_file(
+            JANUARY_CSV["url"],
+            tmp_path / "out.csv",
+            overwrite="sim",  # type: ignore[arg-type]
+            session=session,  # type: ignore[arg-type]
+        )
+    with pytest.raises(TypeError, match="destination"):
+        download_resource_file(
+            JANUARY_CSV["url"],
+            123,  # type: ignore[arg-type]
+            session=session,  # type: ignore[arg-type]
+        )
+    with pytest.raises(TypeError, match="raw_filepath"):
+        build_metadata_filepath(123)  # type: ignore[arg-type]
+    with pytest.raises(TypeError, match="raw_filepath"):
+        build_archived_revision_filepath(123, "A" * 64)  # type: ignore[arg-type]
+    with pytest.raises(TypeError, match="file_path"):
+        compute_file_sha256(123)  # type: ignore[arg-type]
+    with pytest.raises(TypeError, match="metadata_path"):
+        read_collection_metadata(123)  # type: ignore[arg-type]
+    with pytest.raises(TypeError, match="metadata_path"):
+        write_collection_metadata({}, 123)  # type: ignore[arg-type]
+    with pytest.raises(TypeError, match="allow_missing"):
+        download_period_range(
+            "eolica",
+            2025,
+            1,
+            allow_missing="sim",  # type: ignore[arg-type]
+            session=session,  # type: ignore[arg-type]
+        )

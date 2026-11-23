@@ -694,6 +694,11 @@ def summarize_reasons_and_origins(
     ocorrência no período (como ``PAR`` no Ceará em janeiro/2025) aparecem com
     ``intervalos_com_restricao = 0`` e ``geracao_verificada_mwh = pd.NA`` (nunca
     ``0.0`` falso para energia).
+
+    Raises:
+        TypeError: Quando ``dataframe`` não é ``pd.DataFrame`` ou
+            ``include_zero_official_codes`` não é ``bool``.
+        SourceSchemaError: Quando colunas obrigatórias da Fase 3 estão ausentes.
     """
     _validate_metrics_dataframe(dataframe)
     if not isinstance(include_zero_official_codes, bool):
@@ -1012,19 +1017,38 @@ def _svg_bar_chart(
     subtitle: str,
     unit_label: str,
     labels: list[str],
-    values: list[float],
+    values: list[float | None],
     bar_color: str = "#1f6feb",
+    negative_bar_color: str = "#dc2626",
 ) -> str:
-    """Gera um gráfico de barras horizontal em SVG puro (sem dependências extras)."""
-    width = 920
+    """Gera um gráfico de barras horizontal em SVG puro (sem dependências extras).
+
+    Diferencia visualmente os quatro estados possíveis de cada categoria:
+    - ``missing`` (``None`` ou não finito): sem barra, rótulo explícito ``Sem dados``;
+    - ``zero`` (``0.0``): marcador fino sobre o eixo zero e rótulo ``0.00``;
+    - ``positive`` (``> 0``): barra à direita do eixo zero na cor principal;
+    - ``negative`` (``< 0``): barra à esquerda do eixo zero em cor distinta (vermelha).
+    """
+    width = 960
     margin_left = 190
-    margin_right = 110
+    margin_right = 120
     margin_top = 75
     row_height = 28
     chart_height = max(len(labels), 1) * row_height
     height = margin_top + chart_height + 45
-    usable_width = width - margin_left - margin_right
-    max_val = max((v for v in values if math.isfinite(v) and v > 0), default=1.0)
+
+    finite_values = [v for v in values if v is not None and math.isfinite(v)]
+    max_pos = max((v for v in finite_values if v > 0), default=0.0)
+    min_neg = min((v for v in finite_values if v < 0), default=0.0)
+    has_negatives = min_neg < 0.0
+
+    # Reserva folga à esquerda quando há negativos para o rótulo numérico caber.
+    plot_left = margin_left + (70.0 if has_negatives else 0.0)
+    usable_width = width - plot_left - margin_right
+    span = max_pos + abs(min_neg)
+    if span <= 0.0:
+        span = 1.0
+    zero_x = plot_left + (abs(min_neg) / span) * usable_width
 
     def _escape(text: str) -> str:
         return (
@@ -1042,22 +1066,54 @@ def _svg_bar_chart(
         '<rect width="100%" height="100%" fill="#ffffff"/>',
         f'<text x="20" y="30" font-family="sans-serif" font-size="18" font-weight="bold" fill="#111827">{_escape(title)}</text>',
         f'<text x="20" y="52" font-family="sans-serif" font-size="12" fill="#4b5563">{_escape(subtitle)} | Unidade: {_escape(unit_label)}</text>',
+        (
+            f'<line x1="{zero_x:.2f}" y1="{margin_top - 4}" '
+            f'x2="{zero_x:.2f}" y2="{margin_top + chart_height + 4}" '
+            'stroke="#9ca3af" stroke-width="1"/>'
+        ),
     ]
     for idx, (label, val) in enumerate(zip(labels, values, strict=True)):
         y = margin_top + idx * row_height
-        bar_w = (max(val, 0.0) / max_val) * usable_width if max_val > 0 else 0.0
         lines.append(
             f'<text x="{margin_left - 10}" y="{y + 16}" text-anchor="end" '
             f'font-family="sans-serif" font-size="12" fill="#1f2937">{_escape(label)}</text>'
         )
-        lines.append(
-            f'<rect x="{margin_left}" y="{y + 3}" width="{bar_w:.2f}" height="18" '
-            f'rx="3" fill="{bar_color}"/>'
-        )
-        lines.append(
-            f'<text x="{margin_left + bar_w + 8:.2f}" y="{y + 16}" '
-            f'font-family="sans-serif" font-size="11" fill="#111827">{val:,.2f}</text>'
-        )
+        if val is None or not math.isfinite(val):
+            lines.append(
+                f'<text x="{zero_x + 8:.2f}" y="{y + 16}" data-state="missing" '
+                'font-family="sans-serif" font-size="11" font-style="italic" '
+                'fill="#6b7280">Sem dados</text>'
+            )
+        elif val == 0.0:
+            lines.append(
+                f'<rect x="{zero_x - 1.0:.2f}" y="{y + 3}" width="2.00" height="18" '
+                'rx="1" fill="#6b7280" data-state="zero"/>'
+            )
+            lines.append(
+                f'<text x="{zero_x + 8:.2f}" y="{y + 16}" data-state="zero" '
+                'font-family="sans-serif" font-size="11" fill="#374151">0.00</text>'
+            )
+        elif val > 0.0:
+            bar_w = (val / span) * usable_width
+            lines.append(
+                f'<rect x="{zero_x:.2f}" y="{y + 3}" width="{bar_w:.2f}" height="18" '
+                f'rx="3" fill="{bar_color}" data-state="positive"/>'
+            )
+            lines.append(
+                f'<text x="{zero_x + bar_w + 8:.2f}" y="{y + 16}" data-state="positive" '
+                f'font-family="sans-serif" font-size="11" fill="#111827">{val:,.2f}</text>'
+            )
+        else:
+            bar_w = (abs(val) / span) * usable_width
+            bar_x = zero_x - bar_w
+            lines.append(
+                f'<rect x="{bar_x:.2f}" y="{y + 3}" width="{bar_w:.2f}" height="18" '
+                f'rx="3" fill="{negative_bar_color}" data-state="negative"/>'
+            )
+            lines.append(
+                f'<text x="{bar_x - 6:.2f}" y="{y + 16}" text-anchor="end" data-state="negative" '
+                f'font-family="sans-serif" font-size="11" fill="#991b1b">{val:,.2f}</text>'
+            )
 
     lines.append("</svg>\n")
     return "\n".join(lines)
@@ -1074,6 +1130,12 @@ def generate_basic_phase4_charts(
     - ``geracao_diaria_mwh.svg``: série diária de geração verificada (MWh);
     - ``restricoes_por_razao.svg``: contagem de intervalos por razão oficial (REL/CNF/ENE/PAR);
     - ``restricoes_por_hora.svg``: incidência horária de restrições (00h–23h).
+
+    Raises:
+        TypeError: Quando ``dataframe`` não é ``pd.DataFrame`` ou ``output_dir``
+            não é ``Path`` nem ``str``.
+        ValueError: Quando ``output_dir`` é vazio ou aponta para um arquivo existente.
+        SourceSchemaError: Quando colunas obrigatórias da Fase 3 estão ausentes.
     """
     _validate_metrics_dataframe(dataframe)
     if isinstance(output_dir, str):
@@ -1100,7 +1162,7 @@ def generate_basic_phase4_charts(
         unit_label="MWh",
         labels=daily["periodo"].astype(str).tolist(),
         values=[
-            0.0 if pd.isna(v) else float(v) for v in daily["geracao_verificada_mwh"]
+            None if pd.isna(v) else float(v) for v in daily["geracao_verificada_mwh"]
         ],
         bar_color="#0f766e",
     )
