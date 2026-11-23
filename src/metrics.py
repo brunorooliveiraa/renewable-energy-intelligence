@@ -118,6 +118,14 @@ class ReasonsAndOriginsSummary(TypedDict):
     by_reason_and_origin: pd.DataFrame
 
 
+class PeakRestrictionsSummary(TypedDict):
+    """Dias e horários com maior concentração de intervalos restritos."""
+
+    top_n: int
+    top_days: pd.DataFrame
+    top_hours: pd.DataFrame
+
+
 def _validate_metrics_dataframe(dataframe: pd.DataFrame) -> None:
     """Valida esquema, unicidade de colunas e tipagem mínima exigida para métricas."""
     if not isinstance(dataframe, pd.DataFrame):
@@ -854,4 +862,143 @@ def summarize_reasons_and_origins(
         "by_reason": by_reason,
         "by_origin": by_origin,
         "by_reason_and_origin": by_reason_and_origin,
+    }
+
+
+def identify_peak_restriction_periods(
+    dataframe: pd.DataFrame,
+    *,
+    top_n: int = 5,
+) -> PeakRestrictionsSummary:
+    """Identifica os ``top_n`` dias e horários com maior concentração de restrições.
+
+    Utiliza exclusivamente grandezas validadas (contagem e taxa de intervalos
+    restritos, empreendimentos afetados, geração verificada/referência final em
+    MWh e minutos de restrição), sem somar GNRa em MWh.
+
+    Args:
+        dataframe: Tabela tratada pela Fase 3.
+        top_n: Quantidade máxima de dias e horários a retornar (inteiro >= 1).
+
+    Returns:
+        ``PeakRestrictionsSummary`` contendo ``top_days`` e ``top_hours``.
+    """
+    _validate_metrics_dataframe(dataframe)
+    if isinstance(top_n, bool) or not isinstance(top_n, int) or top_n < 1:
+        raise ValueError("top_n deve ser um número inteiro maior ou igual a 1.")
+
+    day_columns = [
+        "data",
+        "total_intervalos",
+        "intervalos_com_restricao",
+        "taxa_restricao_pct",
+        "empreendimentos_afetados",
+        "geracao_verificada_mwh",
+        "geracao_referencia_final_mwh",
+        "minutos_restricao_total_sum",
+    ]
+    hour_columns = [
+        "hora",
+        "total_intervalos",
+        "intervalos_com_restricao",
+        "taxa_restricao_pct",
+        "empreendimentos_afetados",
+        "geracao_verificada_mwh",
+        "minutos_restricao_total_sum",
+    ]
+
+    valid_time = dataframe.dropna(subset=["instante"])
+    if valid_time.empty:
+        return {
+            "top_n": top_n,
+            "top_days": pd.DataFrame(columns=day_columns),
+            "top_hours": pd.DataFrame(columns=hour_columns),
+        }
+
+    elig_ger = valid_time["elegivel_geracao_verificada"].fillna(False).astype(bool)
+    elig_ref = valid_time["elegivel_referencia_final"].fillna(False).astype(bool)
+    restrito = valid_time["possui_restricao_classificada"].fillna(False).astype(bool)
+
+    if "minutos_restricao_total" in valid_time.columns:
+        minutos_total = pd.to_numeric(
+            valid_time["minutos_restricao_total"], errors="coerce"
+        ).astype("Float64")
+    else:
+        minutos_total = pd.Series(pd.NA, index=valid_time.index, dtype="Float64")
+
+    work = pd.DataFrame(
+        {
+            "data": valid_time["instante"].dt.strftime("%Y-%m-%d"),
+            "hora": valid_time["instante"].dt.hour.astype("int64"),
+            "ons_id_restrito": valid_time["ons_id"]
+            .astype("string")
+            .where(restrito, pd.NA),
+            "restrito": restrito.astype("int64"),
+            "geracao_mwh_elegivel": valid_time["geracao_verificada_mwh"]
+            .astype("Float64")
+            .where(elig_ger, pd.NA),
+            "ref_final_mwh_elegivel": valid_time["geracao_referencia_final_mwh"]
+            .astype("Float64")
+            .where(elig_ref, pd.NA),
+            "minutos_total": minutos_total,
+        },
+        index=valid_time.index,
+    )
+
+    days_df = work.groupby("data", sort=True, as_index=False).agg(
+        total_intervalos=("restrito", "size"),
+        intervalos_com_restricao=("restrito", "sum"),
+        empreendimentos_afetados=("ons_id_restrito", "nunique"),
+        geracao_verificada_mwh=("geracao_mwh_elegivel", _sum_preserving_na),
+        geracao_referencia_final_mwh=("ref_final_mwh_elegivel", _sum_preserving_na),
+        minutos_restricao_total_sum=("minutos_total", _sum_preserving_na),
+    )
+    days_df["taxa_restricao_pct"] = (
+        (days_df["intervalos_com_restricao"] / days_df["total_intervalos"]) * 100.0
+    ).round(4)
+    days_df["geracao_verificada_mwh"] = days_df["geracao_verificada_mwh"].astype("Float64")
+    days_df["geracao_referencia_final_mwh"] = days_df[
+        "geracao_referencia_final_mwh"
+    ].astype("Float64")
+    days_df["minutos_restricao_total_sum"] = days_df[
+        "minutos_restricao_total_sum"
+    ].astype("Float64")
+    top_days = (
+        days_df[day_columns]
+        .sort_values(
+            by=["intervalos_com_restricao", "taxa_restricao_pct", "data"],
+            ascending=[False, False, True],
+        )
+        .head(top_n)
+        .reset_index(drop=True)
+    )
+
+    hours_df = work.groupby("hora", sort=True, as_index=False).agg(
+        total_intervalos=("restrito", "size"),
+        intervalos_com_restricao=("restrito", "sum"),
+        empreendimentos_afetados=("ons_id_restrito", "nunique"),
+        geracao_verificada_mwh=("geracao_mwh_elegivel", _sum_preserving_na),
+        minutos_restricao_total_sum=("minutos_total", _sum_preserving_na),
+    )
+    hours_df["taxa_restricao_pct"] = (
+        (hours_df["intervalos_com_restricao"] / hours_df["total_intervalos"]) * 100.0
+    ).round(4)
+    hours_df["geracao_verificada_mwh"] = hours_df["geracao_verificada_mwh"].astype("Float64")
+    hours_df["minutos_restricao_total_sum"] = hours_df[
+        "minutos_restricao_total_sum"
+    ].astype("Float64")
+    top_hours = (
+        hours_df[hour_columns]
+        .sort_values(
+            by=["intervalos_com_restricao", "taxa_restricao_pct", "hora"],
+            ascending=[False, False, True],
+        )
+        .head(top_n)
+        .reset_index(drop=True)
+    )
+
+    return {
+        "top_n": top_n,
+        "top_days": top_days,
+        "top_hours": top_hours,
     }

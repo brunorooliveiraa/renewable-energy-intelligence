@@ -36,10 +36,10 @@
     "semantic_hash": "04fd2d95430107adfa158d4311b0f6f6"
   },
   "src/metrics.py": {
-    "mtime": 1795400050.6867115,
-    "seen": 1795400140.6526458,
-    "ast_hash": "788b6a8fa1bb5f435e2bb2fae512b81f",
-    "semantic_hash": "788b6a8fa1bb5f435e2bb2fae512b81f"
+    "mtime": 1795400306.0761006,
+    "seen": 1795400495.1615992,
+    "ast_hash": "8beed76d4dd5ea2543ea1c99033599b2",
+    "semantic_hash": "8beed76d4dd5ea2543ea1c99033599b2"
   },
   "src/pipeline.py": {
     "mtime": 1795385683.1235213,
@@ -186,9 +186,15 @@
     "semantic_hash": "d27f1f1bf50ff8239f0c01cf09555108"
   },
   "tests/test_metrics.py": {
-    "mtime": 1795400078.0952735,
-    "seen": 1795400140.6526458,
-    "ast_hash": "e31e57cea992e99301c73026ab79e96d",
-    "semantic_hash": "e31e57cea992e99301c73026ab79e96d"
+    "mtime": 1795400426.481476,
+    "seen": 1795400495.1615992,
+    "ast_hash": "31023e61139985e16ec714a62839ae8c",
+    "semantic_hash": "31023e61139985e16ec714a62839ae8c"
+  },
+  "docs/achados_mvp.md": {
+    "mtime": 1795400401.581578,
+    "seen": 1795400495.1615992,
+    "ast_hash": "056196fe3a21c99a5667b60bf2678b4e",
+    "semantic_hash": "056196fe3a21c99a5667b60bf2678b4e"
   }
 }

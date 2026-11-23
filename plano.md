@@ -3,7 +3,7 @@
 > **Projeto de portfólio | Engenharia de Dados + Análise de Dados + Energias Renováveis**  
 > **Problema central:** investigar restrições de geração (*constrained-off* / *curtailment*) em empreendimentos eólicos brasileiros com dados abertos do ONS.  
 > **Foco inicial:** Ceará; evolução para Nordeste e energia solar.  
-> **Status:** Fases 0, 1, 2 e 3 concluídas localmente e enviadas à branch `teste`; pronto para iniciar a Fase 4 (indicadores em `src/metrics.py`).
+> **Status:** Fases 0, 1, 2, 3 e 4 concluídas e enviadas à branch `teste`; pronto para iniciar a Fase 5 (PostgreSQL Neon + API FastAPI na Vercel).
 
 ---
 
@@ -315,9 +315,9 @@ pip freeze > requirements.txt
 - [x] Contabilizar a cobertura das linhas elegíveis e as linhas sem referência.
 - [x] Criar ranking por `id_ons` + nome de exibição, indicando usina ou conjunto quando possível.
 - [x] Comparar razões `REL`, `CNF`, `ENE`, `PAR` e origens `LOC`, `SIS`.
-- [ ] Identificar horários/dias com maiores valores do indicador exploratório.
-- [ ] Anotar **três achados concretos**, com período, unidades, amostra e limitações.
-- [ ] Conferir manualmente alguns cálculos com registros reais do CSV original.
+- [x] Identificar horários/dias com maiores valores do indicador exploratório.
+- [x] Anotar **três achados concretos**, com período, unidades, amostra e limitações.
+- [x] Conferir manualmente alguns cálculos com registros reais do CSV original.
 
 **Critério de conclusão:** um notebook ou script produz os indicadores, os gráficos básicos e pelo menos três conclusões sustentadas por números verificáveis.
 
@@ -524,4 +524,4 @@ Manter esta seção atualizada conforme a implementação:
 
 **Um projeto público com código funcional + pipeline de dados + SQL + dashboard + análise técnica escrita + testes + documentação.** O valor do projeto não estará só no visual: estará em extrair dados oficiais, garantir qualidade, construir métricas defensáveis e comunicar conclusões com responsabilidade.
 
-**Próxima ação:** iniciar a Fase 4 (`src/metrics.py`) para calcular indicadores diários/mensais, ranking por `ons_id`, distribuição por razão/origem e conciliação separada da GNRa.
+**Próxima ação:** iniciar a Fase 5 (`sql/schema.sql`, `src/database.py` e `api/index.py`) para modelar o esquema PostgreSQL (Neon), implementar carga idempotente e expor os endpoints FastAPI consumidos pelo frontend na Vercel.

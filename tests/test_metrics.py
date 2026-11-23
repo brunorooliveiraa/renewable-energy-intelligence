@@ -10,6 +10,7 @@ import pytest
 from src.metrics import (
     build_enterprise_ranking,
     build_generation_series,
+    identify_peak_restriction_periods,
     reconcile_gnra_values,
     summarize_coverage,
     summarize_interval_counts,
@@ -232,6 +233,14 @@ def test_phase4_metrics_on_real_january_ce_parquet() -> None:
     assert int(by_origin.loc["SIS", "intervalos_com_restricao"]) == 5_685
     assert int(by_origin.loc["LOC", "intervalos_com_restricao"]) == 7
 
+    peaks = identify_peak_restriction_periods(df, top_n=5)
+    assert len(peaks["top_days"]) == 5
+    assert peaks["top_days"].loc[0, "data"] == "2025-01-23"
+    assert int(peaks["top_days"].loc[0, "intervalos_com_restricao"]) == 636
+    assert len(peaks["top_hours"]) == 5
+    assert int(peaks["top_hours"].loc[0, "hora"]) == 9
+    assert int(peaks["top_hours"].loc[0, "intervalos_com_restricao"]) == 518
+
 
 def test_summarize_coverage_handles_reference_gaps_and_empty_dataframe() -> None:
     df = _make_phase3_synthetic_df()
@@ -298,3 +307,36 @@ def test_summarize_reasons_and_origins_includes_zero_official_codes_with_na_ener
     assert set(by_origin.index) == {"LOC", "SIS"}
     assert int(by_origin.loc["LOC", "intervalos_com_restricao"]) == 0
     assert pd.isna(by_origin.loc["LOC", "geracao_verificada_mwh"])
+
+
+def test_identify_peak_restriction_periods_orders_days_and_hours_and_validates_top_n() -> None:
+    df = _make_phase3_synthetic_df(
+        {
+            "ons_id": ["CE_01", "CE_02", "CE_01"],
+            "instante": [
+                "2025-01-01 09:00:00",
+                "2025-01-01 09:30:00",
+                "2025-01-02 10:00:00",
+            ],
+            "geracao_mwmed": ["100.0", "80.0", "50.0"],
+            "restricao_razao_codigo": ["REL", "ENE", pd.NA],
+            "restricao_origem_codigo": ["SIS", "SIS", pd.NA],
+            "geracao_nao_realizada_apurada": ["20.0", "10.0", pd.NA],
+        }
+    )
+
+    peaks = identify_peak_restriction_periods(df, top_n=2)
+    assert peaks["top_n"] == 2
+    assert peaks["top_days"].loc[0, "data"] == "2025-01-01"
+    assert int(peaks["top_days"].loc[0, "intervalos_com_restricao"]) == 2
+    assert int(peaks["top_days"].loc[0, "empreendimentos_afetados"]) == 2
+    assert int(peaks["top_hours"].loc[0, "hora"]) == 9
+    assert int(peaks["top_hours"].loc[0, "intervalos_com_restricao"]) == 2
+
+    empty_peaks = identify_peak_restriction_periods(df.iloc[0:0], top_n=3)
+    assert empty_peaks["top_days"].empty
+    assert empty_peaks["top_hours"].empty
+
+    for bad_top_n in (0, -1, True):
+        with pytest.raises(ValueError, match="top_n"):
+            identify_peak_restriction_periods(df, top_n=bad_top_n)  # type: ignore[arg-type]
