@@ -8,16 +8,24 @@ seguintes da Fase 3.
 
 from __future__ import annotations
 
+import argparse
 import csv
+import json
+import os
 import re
+import sys
+import tempfile
 from collections import Counter
-from collections.abc import Iterable, Mapping
+from collections.abc import Iterable, Mapping, Sequence
+from datetime import datetime, timezone
 from pathlib import Path
 from types import MappingProxyType
-from typing import TypedDict
+from typing import Any, Literal, TypedDict
 
 import numpy as np
 import pandas as pd
+
+from src.extract import build_raw_filepath, compute_file_sha256
 
 
 CSV_SEPARATOR = ";"
@@ -26,9 +34,11 @@ CSV_ENCODING = "utf-8-sig"
 TIMESTAMP_FORMAT = "%Y-%m-%d %H:%M:%S"
 TIMESTAMP_TIMEZONE_POLICY = "naive_ons_official_clock"
 DEFAULT_MVP_STATE = "CE"
+DEFAULT_PROCESSED_DIR = Path("data") / "processed"
 CEG_AGGREGATE_PLACEHOLDER = "-"
 EXPECTED_INTERVAL_MINUTES = 30
 EXPECTED_INTERVAL_HOURS = 0.5
+GNRA_UNIT_STATUS = "pending_official_confirmation"
 VALID_RESTRICTION_REASON_CODES: frozenset[str] = frozenset({"REL", "CNF", "ENE", "PAR"})
 _STATE_CODE_PATTERN = re.compile(r"^[A-Z]{2}$")
 _STRICT_DECIMAL_PATTERN = re.compile(
@@ -121,6 +131,13 @@ MWMED_INTERNAL_COLUMNS: tuple[str, ...] = (
     "geracao_referencia_final_mwmed",
 )
 
+MINUTE_INTERNAL_COLUMNS: tuple[str, ...] = (
+    "minutos_restricao_rel",
+    "minutos_restricao_cnf",
+    "minutos_restricao_ene",
+    "minutos_restricao_total",
+)
+
 if len(SOURCE_TO_INTERNAL_COLUMNS) != len(INTERNAL_TO_SOURCE_COLUMNS):
     raise RuntimeError("O mapeamento de colunas internas contém nomes duplicados.")
 if set(SOURCE_TO_INTERNAL_COLUMNS) != set(EXPECTED_SOURCE_COLUMNS):
@@ -191,6 +208,44 @@ class GranularityReport(TypedDict):
     unexpected_step_transitions: int
     off_grid_timestamp_rows: int
     observed_step_minutes: tuple[float, ...]
+
+
+class EnergyCalculationReport(TypedDict):
+    """Resumo auditável das colunas de energia MWh e preservação da GNRa oficial."""
+
+    total_rows: int
+    geracao_verificada_mwh_rows: int
+    geracao_referencia_final_mwh_rows: int
+    gnra_preserved_non_null_rows: int
+    gnra_converted_to_mwh: bool
+    gnra_unit_status: str
+
+
+class TransformationQualityReport(TypedDict):
+    """Relatório consolidado e auditável de toda a execução da Fase 3."""
+
+    source_file: str
+    source_sha256: str
+    output_parquet_path: str
+    output_parquet_size_bytes: int
+    output_parquet_sha256: str
+    processed_at_utc: str
+    target_state: str
+    expected_year: int
+    expected_month: int
+    input_rows: int
+    output_rows: int
+    excluded_by_state_rows: int
+    dropped_exact_duplicate_rows: int
+    timestamp_report: TimestampConversionReport
+    mwmed_reports: dict[str, ColumnNumericReport]
+    state_filter_report: StateFilterReport
+    identifier_report: IdentifierReport
+    duplicate_key_report: dict[str, Any]
+    quality_report: dict[str, Any]
+    eligibility_report: EligibilityReport
+    granularity_report: GranularityReport
+    energy_report: EnergyCalculationReport
 
 
 class StateFilterReport(TypedDict):
@@ -1066,6 +1121,492 @@ def validate_granularity_and_add_duration(
     return result, report
 
 
+def add_energy_and_preserve_gnra(
+    dataframe: pd.DataFrame,
+) -> tuple[pd.DataFrame, EnergyCalculationReport]:
+    """Calcula colunas de energia em MWh nos registros elegíveis e preserva a GNRa oficial.
+
+    Regras metodológicas obrigatórias:
+    - ``geracao_verificada_mwh = geracao_mwmed * duracao_horas`` somente onde
+      ``elegivel_geracao_verificada == True`` e ``duracao_horas`` é finito ``> 0``;
+      demais linhas recebem ``pd.NA`` (nunca ``0.0``).
+    - ``geracao_referencia_final_mwh = geracao_referencia_final_mwmed * duracao_horas``
+      somente onde ``elegivel_referencia_final == True`` e ``duracao_horas`` é
+      finito ``> 0``; demais linhas recebem ``pd.NA``.
+    - A GNRa oficial (``geracao_nao_realizada_apurada``) é convertida para
+      ``Float64`` anulável sem arredondamento e **NÃO** é convertida para MWh
+      enquanto sua unidade não for confirmada documentalmente.
+    - As colunas de minutos de restrição (``MINUTE_INTERNAL_COLUMNS``), quando
+      presentes, são convertidas para ``Float64`` anulável sem alterar nulos.
+
+    Args:
+        dataframe: Tabela já com sinalizadores de elegibilidade e ``duracao_horas``.
+
+    Returns:
+        Tupla ``(enriched_dataframe, report)``.
+
+    Raises:
+        TypeError: Quando ``dataframe`` não é ``pd.DataFrame``.
+        SourceSchemaError: Quando há colunas duplicadas, ausentes ou sem tipagem esperada.
+        NumericConversionError: Quando ``duracao_horas`` tem valor ``<= 0``/não finito
+            ou quando a GNRa/minutos contêm strings numéricas inválidas.
+    """
+
+    if not isinstance(dataframe, pd.DataFrame):
+        raise TypeError("dataframe deve ser um pandas.DataFrame.")
+    if not dataframe.columns.is_unique:
+        duplicated = sorted(
+            str(col) for col in dataframe.columns[dataframe.columns.duplicated()].unique()
+        )
+        raise SourceSchemaError(
+            f"O DataFrame contém nomes de colunas duplicados: {duplicated}."
+        )
+
+    required_columns = (
+        "geracao_mwmed",
+        "geracao_referencia_final_mwmed",
+        "geracao_nao_realizada_apurada",
+        "duracao_horas",
+        "elegivel_geracao_verificada",
+        "elegivel_referencia_final",
+    )
+    missing = [col for col in required_columns if col not in dataframe.columns]
+    if missing:
+        raise SourceSchemaError(
+            f"Colunas obrigatórias ausentes para cálculo de energia MWh: {missing}."
+        )
+
+    for bool_col in ("elegivel_geracao_verificada", "elegivel_referencia_final"):
+        if not pd.api.types.is_bool_dtype(dataframe[bool_col].dtype):
+            raise SourceSchemaError(
+                f"A coluna {bool_col!r} deve ser booleana antes do cálculo de energia."
+            )
+
+    for num_col in (
+        "geracao_mwmed",
+        "geracao_referencia_final_mwmed",
+        "duracao_horas",
+    ):
+        if not pd.api.types.is_numeric_dtype(
+            dataframe[num_col].dtype
+        ) or pd.api.types.is_bool_dtype(dataframe[num_col].dtype):
+            raise SourceSchemaError(
+                f"A coluna {num_col!r} deve ser numérica antes do cálculo de energia."
+            )
+
+    result = dataframe.copy()
+
+    duracao_series = pd.to_numeric(result["duracao_horas"], errors="coerce").astype(
+        "Float64"
+    )
+    non_null_dur = ~duracao_series.isna()
+    dur_finite = pd.Series(
+        np.isfinite(duracao_series.fillna(0.0).to_numpy(dtype="float64")),
+        index=result.index,
+    )
+    invalid_dur_mask = non_null_dur & ((~dur_finite) | (duracao_series <= 0).fillna(False))
+    if bool(invalid_dur_mask.any()):
+        raise NumericConversionError(
+            f"A coluna 'duracao_horas' contém {int(invalid_dur_mask.sum())} valor(es) "
+            "não positivo(s) ou não finito(s), impedindo conversão segura para MWh."
+        )
+
+    # Preserva GNRa oficial como Float64 sem converter para MWh.
+    gnra_series, gnra_report = _convert_single_numeric_series(
+        result["geracao_nao_realizada_apurada"],
+        column="geracao_nao_realizada_apurada",
+        source_column="val_geracaonaorealizadaapurada",
+    )
+    if gnra_report["invalid_count"] > 0:
+        raise NumericConversionError(
+            "Falha ao preservar 'geracao_nao_realizada_apurada' como Float64: "
+            f"{gnra_report['invalid_count']} inválido(s), "
+            f"amostras={list(gnra_report['invalid_samples'])}."
+        )
+    result["geracao_nao_realizada_apurada"] = gnra_series
+
+    # Converte colunas de minutos de restrição presentes, preservando nulos.
+    for min_col in MINUTE_INTERNAL_COLUMNS:
+        if min_col in result.columns:
+            min_series, min_report = _convert_single_numeric_series(
+                result[min_col],
+                column=min_col,
+                source_column=INTERNAL_TO_SOURCE_COLUMNS.get(min_col, min_col),
+            )
+            if min_report["invalid_count"] > 0:
+                raise NumericConversionError(
+                    f"Falha ao converter coluna de minutos {min_col!r}: "
+                    f"{min_report['invalid_count']} inválido(s), "
+                    f"amostras={list(min_report['invalid_samples'])}."
+                )
+            result[min_col] = min_series
+
+    elig_verificada = result["elegivel_geracao_verificada"].fillna(False).astype(bool)
+    elig_ref_final = result["elegivel_referencia_final"].fillna(False).astype(bool)
+
+    geracao_mwh = pd.Series(pd.NA, index=result.index, dtype="Float64")
+    mask_geracao = elig_verificada & non_null_dur
+    geracao_mwh.loc[mask_geracao] = (
+        result.loc[mask_geracao, "geracao_mwmed"].astype("Float64")
+        * duracao_series.loc[mask_geracao]
+    )
+
+    ref_final_mwh = pd.Series(pd.NA, index=result.index, dtype="Float64")
+    mask_ref_final = elig_ref_final & non_null_dur
+    ref_final_mwh.loc[mask_ref_final] = (
+        result.loc[mask_ref_final, "geracao_referencia_final_mwmed"].astype("Float64")
+        * duracao_series.loc[mask_ref_final]
+    )
+
+    result["geracao_verificada_mwh"] = geracao_mwh
+    result["geracao_referencia_final_mwh"] = ref_final_mwh
+
+    report: EnergyCalculationReport = {
+        "total_rows": len(result),
+        "geracao_verificada_mwh_rows": int((~geracao_mwh.isna()).sum()),
+        "geracao_referencia_final_mwh_rows": int((~ref_final_mwh.isna()).sum()),
+        "gnra_preserved_non_null_rows": int((~gnra_series.isna()).sum()),
+        "gnra_converted_to_mwh": False,
+        "gnra_unit_status": GNRA_UNIT_STATUS,
+    }
+    return result, report
+
+
+def build_processed_filepath(
+    state_code: str,
+    year: int,
+    month: int,
+    *,
+    output_dir: Path | str = DEFAULT_PROCESSED_DIR,
+) -> Path:
+    """Constrói o caminho previsível da saída Parquet da Fase 3.
+
+    Para Ceará e janeiro de 2025, retorna
+    ``Path("data/processed/restricoes_eolicas_ce_2025_01.parquet")``.
+    """
+
+    if not isinstance(state_code, str) or not _STATE_CODE_PATTERN.fullmatch(
+        state_code.upper()
+    ):
+        raise ValueError(
+            f"state_code inválido: {state_code!r}. Informe exatamente 2 letras ASCII."
+        )
+    if isinstance(year, bool) or not isinstance(year, int) or not 1000 <= year <= 9999:
+        raise ValueError("year deve ser um inteiro de 4 dígitos (1000 a 9999).")
+    if isinstance(month, bool) or not isinstance(month, int) or not 1 <= month <= 12:
+        raise ValueError("month deve ser um inteiro entre 1 e 12.")
+
+    if isinstance(output_dir, str):
+        if not output_dir.strip():
+            raise ValueError("output_dir não pode ser uma string vazia.")
+        normalized_dir = Path(output_dir.strip())
+    elif isinstance(output_dir, Path):
+        normalized_dir = output_dir
+    else:
+        raise ValueError("output_dir deve ser um objeto Path ou uma string não vazia.")
+
+    if normalized_dir.exists() and not normalized_dir.is_dir():
+        raise ValueError(
+            f"output_dir aponta para um arquivo existente, não um diretório: {normalized_dir}."
+        )
+
+    filename = f"restricoes_eolicas_{state_code.lower()}_{year:04d}_{month:02d}.parquet"
+    return normalized_dir / filename
+
+
+def build_quality_report_filepath(parquet_path: Path | str) -> Path:
+    """Constrói o caminho do relatório JSON de qualidade associado ao Parquet."""
+
+    if isinstance(parquet_path, str):
+        if not parquet_path.strip():
+            raise ValueError("parquet_path não pode ser uma string vazia.")
+        path = Path(parquet_path.strip())
+    elif isinstance(parquet_path, Path):
+        path = parquet_path
+    else:
+        raise ValueError("parquet_path deve ser um objeto Path ou uma string não vazia.")
+
+    if not path.name:
+        raise ValueError("parquet_path deve incluir um nome de arquivo válido.")
+    return path.with_name(f"{path.name}.quality_report.json")
+
+
+def write_processed_parquet(
+    dataframe: pd.DataFrame,
+    destination: Path | str,
+) -> tuple[Path, int, str]:
+    """Grava o DataFrame tratado em Parquet (PyArrow) de forma atômica.
+
+    Escreve primeiro em um arquivo temporário ``.part`` no mesmo diretório e
+    só move para ``destination`` após concluir a escrita, garantindo que falhas
+    de I/O nunca deixem um Parquet corrompido no destino.
+
+    Returns:
+        Tupla ``(destination_path, size_bytes, sha256_uppercase)``.
+    """
+
+    if not isinstance(dataframe, pd.DataFrame):
+        raise TypeError("dataframe deve ser um pandas.DataFrame.")
+
+    if isinstance(destination, str):
+        if not destination.strip():
+            raise ValueError("destination não pode ser uma string vazia.")
+        path = Path(destination.strip())
+    elif isinstance(destination, Path):
+        path = destination
+    else:
+        raise ValueError("destination deve ser um objeto Path ou uma string não vazia.")
+
+    if path.exists() and path.is_dir():
+        raise ValueError(f"destination aponta para um diretório existente: {path}.")
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, temp_name = tempfile.mkstemp(
+        prefix=f".{path.name}.",
+        suffix=".part",
+        dir=path.parent,
+    )
+    os.close(fd)
+    temp_path = Path(temp_name)
+
+    try:
+        dataframe.to_parquet(temp_path, engine="pyarrow", index=False)
+        temp_path.replace(path)
+    except BaseException:
+        temp_path.unlink(missing_ok=True)
+        raise
+
+    size_bytes, sha256_hex = compute_file_sha256(path)
+    return path, size_bytes, sha256_hex
+
+
+def write_quality_report(
+    report: TransformationQualityReport,
+    report_path: Path | str,
+) -> Path:
+    """Grava atomicamente o relatório consolidado de qualidade da Fase 3 em JSON."""
+
+    if isinstance(report_path, str):
+        if not report_path.strip():
+            raise ValueError("report_path não pode ser uma string vazia.")
+        path = Path(report_path.strip())
+    elif isinstance(report_path, Path):
+        path = report_path
+    else:
+        raise ValueError("report_path deve ser um objeto Path ou uma string não vazia.")
+
+    if path.exists() and path.is_dir():
+        raise ValueError(f"report_path aponta para um diretório existente: {path}.")
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, temp_name = tempfile.mkstemp(
+        prefix=f".{path.name}.",
+        suffix=".part",
+        dir=path.parent,
+    )
+    temp_path = Path(temp_name)
+
+    try:
+        serialized = json.dumps(report, indent=2, ensure_ascii=False) + "\n"
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            handle.write(serialized)
+            handle.flush()
+        temp_path.replace(path)
+    except BaseException:
+        temp_path.unlink(missing_ok=True)
+        raise
+
+    return path
+
+
+def transform_monthly_dataset(
+    raw_csv_path: Path | str,
+    *,
+    year: int,
+    month: int,
+    state_code: str = DEFAULT_MVP_STATE,
+    output_dir: Path | str = DEFAULT_PROCESSED_DIR,
+    on_duplicate: Literal["raise", "report", "drop_exact_only"] = "raise",
+    strict_quality: bool = True,
+) -> tuple[pd.DataFrame, Path, Path, TransformationQualityReport]:
+    """Executa toda a Fase 3 (leitura, tipagem, filtro, validação, energia, Parquet e relatório).
+
+    Args:
+        raw_csv_path: Caminho do CSV bruto oficial do ONS.
+        year: Ano de referência com 4 dígitos.
+        month: Mês de referência (1..12).
+        state_code: Sigla da UF desejada (padrão ``"CE"``).
+        output_dir: Diretório de saída para o Parquet e relatório JSON.
+        on_duplicate: Política de resolução de duplicidades na chave
+            (``"raise"``, ``"report"`` ou ``"drop_exact_only"``).
+        strict_quality: Se ``True``, falha diante de anomalias bloqueantes em
+            ``run_quality_checks``.
+
+    Returns:
+        Tupla ``(processed_df, parquet_path, quality_report_path, report)``.
+    """
+
+    # Importação local evita dependência circular entre src.transform e src.validate.
+    from src.validate import check_and_resolve_key_duplicates, run_quality_checks
+
+    source_path = _validate_raw_csv_path(raw_csv_path)
+    _, source_sha256 = compute_file_sha256(source_path)
+    parquet_destination = build_processed_filepath(
+        state_code,
+        year,
+        month,
+        output_dir=output_dir,
+    )
+    report_destination = build_quality_report_filepath(parquet_destination)
+
+    raw_df = read_raw_ons_csv(source_path)
+    input_rows = len(raw_df)
+
+    standardized_df = standardize_column_names(raw_df)
+    ts_df, timestamp_report = parse_instante_column(standardized_df, strict=True)
+    num_df, mwmed_reports = convert_mwmed_columns(ts_df, strict=True)
+    state_df, state_filter_report = filter_by_state(num_df, state_code, allow_empty=False)
+    id_df, identifier_report = preserve_operational_identifiers(
+        state_df, strict_ons_id=True
+    )
+    dedup_df, duplicate_key_report = check_and_resolve_key_duplicates(
+        id_df, on_duplicate=on_duplicate
+    )
+    quality_report = run_quality_checks(
+        dedup_df,
+        expected_year=year,
+        expected_month=month,
+        strict=strict_quality,
+    )
+    flagged_df, eligibility_report = add_eligibility_flags(dedup_df)
+    dur_df, granularity_report = validate_granularity_and_add_duration(
+        flagged_df, strict=True
+    )
+    final_df, energy_report = add_energy_and_preserve_gnra(dur_df)
+
+    parquet_path, parquet_size_bytes, parquet_sha256 = write_processed_parquet(
+        final_df, parquet_destination
+    )
+
+    consolidated_report: TransformationQualityReport = {
+        "source_file": source_path.as_posix(),
+        "source_sha256": source_sha256,
+        "output_parquet_path": parquet_path.as_posix(),
+        "output_parquet_size_bytes": parquet_size_bytes,
+        "output_parquet_sha256": parquet_sha256,
+        "processed_at_utc": datetime.now(timezone.utc).isoformat(),
+        "target_state": state_filter_report["target_state"],
+        "expected_year": year,
+        "expected_month": month,
+        "input_rows": input_rows,
+        "output_rows": len(final_df),
+        "excluded_by_state_rows": state_filter_report["excluded_rows"],
+        "dropped_exact_duplicate_rows": duplicate_key_report[
+            "exact_duplicate_rows_dropped"
+        ],
+        "timestamp_report": timestamp_report,
+        "mwmed_reports": mwmed_reports,
+        "state_filter_report": state_filter_report,
+        "identifier_report": identifier_report,
+        "duplicate_key_report": dict(duplicate_key_report),
+        "quality_report": dict(quality_report),
+        "eligibility_report": eligibility_report,
+        "granularity_report": granularity_report,
+        "energy_report": energy_report,
+    }
+    report_path = write_quality_report(consolidated_report, report_destination)
+
+    return final_df, parquet_path, report_path, consolidated_report
+
+
+def build_argument_parser() -> argparse.ArgumentParser:
+    """Constrói o parser CLI para ``python -m src.transform``."""
+    parser = argparse.ArgumentParser(
+        prog="python -m src.transform",
+        description=(
+            "Transforma, valida e grava em Parquet os registros mensais de "
+            "restrição de geração eólica do ONS para a UF solicitada."
+        ),
+    )
+    parser.add_argument(
+        "--year",
+        type=int,
+        required=True,
+        help="Ano de referência com 4 dígitos (ex.: 2025).",
+    )
+    parser.add_argument(
+        "--month",
+        type=int,
+        required=True,
+        help="Mês de referência entre 1 e 12 (ex.: 1).",
+    )
+    parser.add_argument(
+        "--state",
+        type=str,
+        default=DEFAULT_MVP_STATE,
+        help=f"Sigla da UF com 2 letras (padrão: {DEFAULT_MVP_STATE}).",
+    )
+    parser.add_argument(
+        "--input",
+        dest="input_path",
+        type=Path,
+        default=None,
+        help=(
+            "Caminho opcional do CSV bruto. Quando omitido, busca "
+            "data/raw/ons_eolica_YYYY_MM.csv."
+        ),
+    )
+    parser.add_argument(
+        "--output-dir",
+        type=Path,
+        default=DEFAULT_PROCESSED_DIR,
+        help=f"Diretório de saída do Parquet e relatório (padrão: {DEFAULT_PROCESSED_DIR}).",
+    )
+    parser.add_argument(
+        "--on-duplicate",
+        choices=("raise", "report", "drop_exact_only"),
+        default="raise",
+        help="Política para duplicidades na chave (ons_id, instante).",
+    )
+    return parser
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    """Ponto de entrada CLI para transformação e validação de um mês do ONS."""
+    parser = build_argument_parser()
+    try:
+        args = parser.parse_args(list(argv) if argv is not None else None)
+    except SystemExit as exc:
+        return exc.code if isinstance(exc.code, int) else 1
+
+    try:
+        raw_path = (
+            args.input_path
+            if args.input_path is not None
+            else build_raw_filepath("eolica", args.year, args.month, "csv")
+        )
+        _, parquet_path, report_path, report = transform_monthly_dataset(
+            raw_path,
+            year=args.year,
+            month=args.month,
+            state_code=args.state,
+            output_dir=args.output_dir,
+            on_duplicate=args.on_duplicate,
+            strict_quality=True,
+        )
+    except (ValueError, FileNotFoundError, OSError) as error:
+        print(f"Erro na transformação: {error}", file=sys.stderr)
+        return 1
+
+    print(
+        f"[ok] {report['target_state']} {report['expected_year']:04d}-{report['expected_month']:02d}: "
+        f"{report['input_rows']} -> {report['output_rows']} linhas | "
+        f"parquet={parquet_path} (sha256={report['output_parquet_sha256']}) | "
+        f"relatorio={report_path}"
+    )
+    return 0
+
+
 def _convert_single_numeric_series(
     series: pd.Series,
     *,
@@ -1206,3 +1747,7 @@ def _validate_csv_structure(path: Path) -> tuple[tuple[str, ...], int]:
         ) from error
 
     return normalized_header, row_count
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import csv
 import hashlib
+import json
 from pathlib import Path
 
 import pandas as pd
@@ -11,8 +12,10 @@ import pytest
 
 from src.transform import (
     CEG_AGGREGATE_PLACEHOLDER,
+    DEFAULT_PROCESSED_DIR,
     EXPECTED_INTERVAL_HOURS,
     EXPECTED_SOURCE_COLUMNS,
+    GNRA_UNIT_STATUS,
     INTERNAL_TO_SOURCE_COLUMNS,
     MWMED_INTERNAL_COLUMNS,
     SOURCE_TO_INTERNAL_COLUMNS,
@@ -25,14 +28,19 @@ from src.transform import (
     SourceSchemaError,
     TimestampConversionError,
     add_eligibility_flags,
+    add_energy_and_preserve_gnra,
+    build_processed_filepath,
     convert_mwmed_columns,
     filter_by_state,
     inspect_source_schema,
+    main,
     parse_instante_column,
     preserve_operational_identifiers,
     read_raw_ons_csv,
     standardize_column_names,
+    transform_monthly_dataset,
     validate_granularity_and_add_duration,
+    write_processed_parquet,
 )
 
 
@@ -660,3 +668,164 @@ def test_validate_granularity_rejects_invalid_step_parameter() -> None:
             validate_granularity_and_add_duration(
                 typed, expected_step_minutes=bad_step  # type: ignore[arg-type]
             )
+
+
+def test_add_energy_and_preserve_gnra_computes_50mwh_for_100mwmed_half_hour() -> None:
+    raw = _sample_standardized_dataframe(
+        {
+            "ons_id": ["CE_01", "CE_01", "CE_02"],
+            "instante": [
+                "2025-01-01 00:00:00",
+                "2025-01-01 00:30:00",
+                "2025-01-01 00:00:00",
+            ],
+            "geracao_mwmed": ["100.0", pd.NA, "-10.0"],
+            "geracao_referencia_final_mwmed": ["120.0", pd.NA, "50.0"],
+            "restricao_razao_codigo": ["REL", pd.NA, "REL"],
+            "geracao_nao_realizada_apurada": ["20.0", pd.NA, "5.0"],
+            "minutos_restricao_rel": ["30", pd.NA, "15"],
+            "minutos_restricao_restricao": ["30", pd.NA, "15"],
+        }
+    )
+    raw = raw.drop(columns=["minutos_restricao_restricao"])
+    typed, _ = parse_instante_column(raw)
+    typed, _ = convert_mwmed_columns(typed)
+    flagged, _ = add_eligibility_flags(typed)
+    with_dur, _ = validate_granularity_and_add_duration(flagged)
+
+    enriched, report = add_energy_and_preserve_gnra(with_dur)
+
+    # 100 MWmed * 0.5 h = 50.0 MWh; 120 MWmed * 0.5 h = 60.0 MWh.
+    assert enriched.loc[0, "geracao_verificada_mwh"] == 50.0
+    assert enriched.loc[0, "geracao_referencia_final_mwh"] == 60.0
+    # Nulos e inelegiveis (geracao negativa) viram pd.NA, nunca 0.0.
+    assert pd.isna(enriched.loc[1, "geracao_verificada_mwh"])
+    assert pd.isna(enriched.loc[2, "geracao_verificada_mwh"])
+    assert pd.isna(enriched.loc[1, "geracao_referencia_final_mwh"])
+    assert enriched.loc[2, "geracao_referencia_final_mwh"] == 25.0
+    # GNRa preservada como Float64 sem conversao para MWh.
+    assert isinstance(enriched["geracao_nao_realizada_apurada"].dtype, pd.Float64Dtype)
+    assert enriched.loc[0, "geracao_nao_realizada_apurada"] == 20.0
+    assert "gnra_mwh" not in enriched.columns
+    assert report == {
+        "total_rows": 3,
+        "geracao_verificada_mwh_rows": 1,
+        "geracao_referencia_final_mwh_rows": 2,
+        "gnra_preserved_non_null_rows": 2,
+        "gnra_converted_to_mwh": False,
+        "gnra_unit_status": GNRA_UNIT_STATUS,
+    }
+
+
+def test_add_energy_rejects_non_positive_duration() -> None:
+    raw = _sample_standardized_dataframe()
+    typed, _ = parse_instante_column(raw)
+    typed, _ = convert_mwmed_columns(typed)
+    flagged, _ = add_eligibility_flags(typed)
+    flagged["duracao_horas"] = pd.Series([0.0, 0.5], dtype="Float64")
+
+    with pytest.raises(NumericConversionError, match="não positivo"):
+        add_energy_and_preserve_gnra(flagged)
+
+
+def test_build_processed_filepath_uses_relative_default_dir() -> None:
+    default_path = build_processed_filepath("CE", 2025, 1)
+    assert default_path == DEFAULT_PROCESSED_DIR / "restricoes_eolicas_ce_2025_01.parquet"
+    assert not default_path.is_absolute()
+
+
+def test_transform_monthly_dataset_writes_parquet_and_quality_report_and_cli_runs(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    csv_path = tmp_path / "ons_eolica_2025_01.csv"
+    row_ce_1 = _valid_csv_row()
+    row_ce_2 = _valid_csv_row()
+    row_ce_2[EXPECTED_SOURCE_COLUMNS.index("din_instante")] = "2025-01-01 00:30:00"
+    row_ce_2[EXPECTED_SOURCE_COLUMNS.index("val_geracao")] = "100.0"
+    row_ce_2[EXPECTED_SOURCE_COLUMNS.index("val_geracaoreferenciafinal")] = "140.0"
+    row_ce_2[EXPECTED_SOURCE_COLUMNS.index("cod_razaorestricao")] = "REL"
+    row_ce_2[EXPECTED_SOURCE_COLUMNS.index("cod_origemrestricao")] = "SIS"
+    row_ce_2[EXPECTED_SOURCE_COLUMNS.index("val_geracaonaorealizadaapurada")] = "40.0"
+
+    row_rn = _valid_csv_row()
+    row_rn[EXPECTED_SOURCE_COLUMNS.index("id_estado")] = "RN"
+    row_rn[EXPECTED_SOURCE_COLUMNS.index("id_ons")] = "RN_01"
+
+    with csv_path.open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.writer(handle, delimiter=";", lineterminator="\n")
+        writer.writerow(EXPECTED_SOURCE_COLUMNS)
+        writer.writerow(row_ce_1)
+        writer.writerow(row_ce_2)
+        writer.writerow(row_rn)
+
+    out_dir = tmp_path / "processed"
+    processed_df, parquet_path, report_path, report = transform_monthly_dataset(
+        csv_path,
+        year=2025,
+        month=1,
+        state_code="CE",
+        output_dir=out_dir,
+    )
+
+    assert parquet_path == out_dir / "restricoes_eolicas_ce_2025_01.parquet"
+    assert parquet_path.is_file()
+    assert report_path.is_file()
+    assert list(out_dir.glob("*.part")) == []
+
+    # Round-trip Parquet preserva tipos, valores e ceg == "-".
+    reloaded = pd.read_parquet(parquet_path)
+    assert len(reloaded) == 2
+    assert reloaded.loc[0, "ceg"] == "-"
+    assert reloaded.loc[1, "geracao_verificada_mwh"] == 50.0
+    assert reloaded.loc[1, "geracao_referencia_final_mwh"] == 70.0
+    assert reloaded.loc[1, "geracao_nao_realizada_apurada"] == 40.0
+
+    report_json = json.loads(report_path.read_text(encoding="utf-8"))
+    assert report_json["input_rows"] == 3
+    assert report_json["output_rows"] == 2
+    assert report_json["excluded_by_state_rows"] == 1
+    assert report_json["energy_report"]["gnra_converted_to_mwh"] is False
+    assert len(report_json["output_parquet_sha256"]) == 64
+
+    # Verifica CLI (sucesso e erro).
+    cli_ok = main(
+        [
+            "--year",
+            "2025",
+            "--month",
+            "1",
+            "--state",
+            "CE",
+            "--input",
+            str(csv_path),
+            "--output-dir",
+            str(out_dir),
+        ]
+    )
+    captured = capsys.readouterr()
+    assert cli_ok == 0
+    assert "[ok] CE 2025-01: 3 -> 2 linhas" in captured.out
+    assert captured.err == ""
+
+    cli_err = main(
+        [
+            "--year",
+            "2025",
+            "--month",
+            "1",
+            "--state",
+            "CE",
+            "--input",
+            str(tmp_path / "inexistente.csv"),
+        ]
+    )
+    captured_err = capsys.readouterr()
+    assert cli_err == 1
+    assert "Erro na transformação:" in captured_err.err
+
+
+def test_write_processed_parquet_rejects_directory_destination(tmp_path: Path) -> None:
+    df = pd.DataFrame({"a": [1]})
+    with pytest.raises(ValueError, match="diretório existente"):
+        write_processed_parquet(df, tmp_path)

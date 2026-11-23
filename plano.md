@@ -3,7 +3,7 @@
 > **Projeto de portfólio | Engenharia de Dados + Análise de Dados + Energias Renováveis**  
 > **Problema central:** investigar restrições de geração (*constrained-off* / *curtailment*) em empreendimentos eólicos brasileiros com dados abertos do ONS.  
 > **Foco inicial:** Ceará; evolução para Nordeste e energia solar.  
-> **Status:** Fases 1 e 2 concluídas localmente; pronto para iniciar a Fase 3 (transformação e validação).
+> **Status:** Fases 0, 1, 2 e 3 concluídas localmente e enviadas à branch `teste`; pronto para iniciar a Fase 4 (indicadores em `src/metrics.py`).
 
 ---
 
@@ -301,9 +301,9 @@ pip freeze > requirements.txt
 - [x] Identificar nulos, valores negativos observados, códigos desconhecidos e datas fora do mês.
 - [x] Criar sinalizadores de elegibilidade para cada indicador.
 - [x] Calcular `duracao_horas` somente após validar granularidade; inicialmente, expectativa de 0,5 h.
-- [ ] Preservar a GNRa oficial e criar colunas de energia em MWh somente após confirmar documentalmente as unidades e regras descritas na seção 4.
-- [ ] Salvar base tratada em `data/processed/restricoes_eolicas_ce_2025_01.parquet`.
-- [ ] Gerar relatório de qualidade: linhas de entrada/saída, nulos, duplicidades e rejeições justificadas.
+- [x] Preservar a GNRa oficial e criar colunas de energia em MWh somente após confirmar documentalmente as unidades e regras descritas na seção 4.
+- [x] Salvar base tratada em `data/processed/restricoes_eolicas_ce_2025_01.parquet`.
+- [x] Gerar relatório de qualidade: linhas de entrada/saída, nulos, duplicidades e rejeições justificadas.
 
 **Critério de conclusão:** transformação repetível, sem perdas silenciosas de dados, com métricas de qualidade e regras documentadas.
 
@@ -524,4 +524,4 @@ Manter esta seção atualizada conforme a implementação:
 
 **Um projeto público com código funcional + pipeline de dados + SQL + dashboard + análise técnica escrita + testes + documentação.** O valor do projeto não estará só no visual: estará em extrair dados oficiais, garantir qualidade, construir métricas defensáveis e comunicar conclusões com responsabilidade.
 
-**Próxima ação:** concluir os 3 últimos itens da Fase 3 (preservação da GNRa + colunas de energia em MWh com `duracao_horas` validada, escrita atômica em Parquet `data/processed/restricoes_eolicas_ce_2025_01.parquet` + CLI `python -m src.transform` e relatório consolidado de qualidade).
+**Próxima ação:** iniciar a Fase 4 (`src/metrics.py`) para calcular indicadores diários/mensais, ranking por `ons_id`, distribuição por razão/origem e conciliação separada da GNRa.
