@@ -1,0 +1,152 @@
+{
+  "docs/referencias/ons/DicionarioDados_RestricaoContrainedoff_UsiEolicas.json": {
+    "mtime": 1795387250.7771308,
+    "seen": 1795389290.9474015,
+    "ast_hash": "6d49e11447ed1355282456a741457a9e",
+    "semantic_hash": "6d49e11447ed1355282456a741457a9e"
+  },
+  "frontend/assets/js/app.js": {
+    "mtime": 1795386195.4835446,
+    "seen": 1795389290.9474015,
+    "ast_hash": "618d8f0526ad23e5db69ef384d6cbdd4",
+    "semantic_hash": "618d8f0526ad23e5db69ef384d6cbdd4"
+  },
+  "sql/schema.sql": {
+    "mtime": 1795385690.4402523,
+    "seen": 1795389290.9474015,
+    "ast_hash": "cb8e46a16edaffa3d4db4e9507989a63",
+    "semantic_hash": "cb8e46a16edaffa3d4db4e9507989a63"
+  },
+  "src/__init__.py": {
+    "mtime": 1795385678.521852,
+    "seen": 1795389290.9474015,
+    "ast_hash": "a9707c6229bd218ec7e6336bb0bf5376",
+    "semantic_hash": "a9707c6229bd218ec7e6336bb0bf5376"
+  },
+  "src/database.py": {
+    "mtime": 1795385682.358117,
+    "seen": 1795389290.9474015,
+    "ast_hash": "7f603b1d29914086d06445fff63a0c40",
+    "semantic_hash": "7f603b1d29914086d06445fff63a0c40"
+  },
+  "src/extract.py": {
+    "mtime": 1795392838.5528762,
+    "seen": 1795392994.6113775,
+    "ast_hash": "04fd2d95430107adfa158d4311b0f6f6",
+    "semantic_hash": "04fd2d95430107adfa158d4311b0f6f6"
+  },
+  "src/metrics.py": {
+    "mtime": 1795385681.5861516,
+    "seen": 1795389290.9474015,
+    "ast_hash": "13d227822ad62df284fc6b220aa47804",
+    "semantic_hash": "13d227822ad62df284fc6b220aa47804"
+  },
+  "src/pipeline.py": {
+    "mtime": 1795385683.1235213,
+    "seen": 1795389290.9474015,
+    "ast_hash": "147889a0a86beac112e06f82da3d6bf6",
+    "semantic_hash": "147889a0a86beac112e06f82da3d6bf6"
+  },
+  "src/transform.py": {
+    "mtime": 1795396318.631846,
+    "seen": 1795396397.903668,
+    "ast_hash": "e0e531cc4818856c4e716c3225e7a672",
+    "semantic_hash": "e0e531cc4818856c4e716c3225e7a672"
+  },
+  "src/validate.py": {
+    "mtime": 1795396338.6066492,
+    "seen": 1795396397.903668,
+    "ast_hash": "92df852004210c8b7634a6f40a47ed43",
+    "semantic_hash": "92df852004210c8b7634a6f40a47ed43"
+  },
+  "tests/test_extract.py": {
+    "mtime": 1795392857.8812013,
+    "seen": 1795392994.6113775,
+    "ast_hash": "b7029be4477d2e0fbdd9ef3b18d7c905",
+    "semantic_hash": "b7029be4477d2e0fbdd9ef3b18d7c905"
+  },
+  "tests/test_references.py": {
+    "mtime": 1795387289.0193179,
+    "seen": 1795389290.9474015,
+    "ast_hash": "28539cd619ee50e6bdc58a666af641af",
+    "semantic_hash": "28539cd619ee50e6bdc58a666af641af"
+  },
+  "tests/test_structure.py": {
+    "mtime": 1795386240.110852,
+    "seen": 1795389290.9474015,
+    "ast_hash": "7d5ebea16dda5ac377e5b901fb798207",
+    "semantic_hash": "7d5ebea16dda5ac377e5b901fb798207"
+  },
+  "AGENTS.md": {
+    "mtime": 1795395924.380276,
+    "seen": 1795396161.2391536,
+    "ast_hash": "fd8d86cae29a3a9ad248e8fc18d27e0c",
+    "semantic_hash": "fd8d86cae29a3a9ad248e8fc18d27e0c"
+  },
+  "README.md": {
+    "mtime": 1795395927.7047365,
+    "seen": 1795396161.2391536,
+    "ast_hash": "a9c60b362f339ca083276131aa0745d1",
+    "semantic_hash": "a9c60b362f339ca083276131aa0745d1"
+  },
+  "docs/dicionario_dados.md": {
+    "mtime": 1795394109.1370435,
+    "seen": 1795394641.1921313,
+    "ast_hash": "60395021d30da8252c126213744d57d0",
+    "semantic_hash": "60395021d30da8252c126213744d57d0"
+  },
+  "docs/extracao.md": {
+    "mtime": 1795392859.3989644,
+    "seen": 1795392994.6113775,
+    "ast_hash": "92dcc42fb98fd2b627587c4dfd507468",
+    "semantic_hash": "92dcc42fb98fd2b627587c4dfd507468"
+  },
+  "docs/metodologia.md": {
+    "mtime": 1795394469.1042917,
+    "seen": 1795394641.1921313,
+    "ast_hash": "f96b82345423788837ee7ca02709c6db",
+    "semantic_hash": "f96b82345423788837ee7ca02709c6db"
+  },
+  "docs/referencias/ons/README.md": {
+    "mtime": 1795387287.467439,
+    "seen": 1795389290.9474015,
+    "ast_hash": "8dc138f51fefc06b289b0a3d6130d79e",
+    "semantic_hash": "8dc138f51fefc06b289b0a3d6130d79e"
+  },
+  "frontend/index.html": {
+    "mtime": 1795386192.9979234,
+    "seen": 1795389290.9474015,
+    "ast_hash": "04b7ca9dfcde1042f65c6a14b9172043",
+    "semantic_hash": "04b7ca9dfcde1042f65c6a14b9172043"
+  },
+  "plano.md": {
+    "mtime": 1795395999.5269432,
+    "seen": 1795396161.2391536,
+    "ast_hash": "d3cd0fe3891400309faadb490a786f9e",
+    "semantic_hash": "d3cd0fe3891400309faadb490a786f9e"
+  },
+  "requirements.txt": {
+    "mtime": 1795386189.2451532,
+    "seen": 1795389290.9474015,
+    "ast_hash": "5b60b314c4e33b50c36ed4c7158a8899",
+    "semantic_hash": "5b60b314c4e33b50c36ed4c7158a8899"
+  },
+  "docs/referencias/ons/DicionarioDados_RestricaoContrainedoff_UsiEolicas.pdf": {
+    "mtime": 1795387430.2413433,
+    "seen": 1795389290.9474015,
+    "ast_hash": "90e5786c1cdaddaa72e22b7d7cbb95be",
+    "semantic_hash": "90e5786c1cdaddaa72e22b7d7cbb95be"
+  },
+  "tests/test_transform.py": {
+    "mtime": 1795395573.6346707,
+    "seen": 1795395735.9854803,
+    "ast_hash": "368ced328930d1f7328165a8024a4482",
+    "semantic_hash": "368ced328930d1f7328165a8024a4482"
+  },
+  "tests/test_quality.py": {
+    "mtime": 1795396354.9780293,
+    "seen": 1795396397.903668,
+    "ast_hash": "cd416d098c25e96c1bc120a68c881df1",
+    "semantic_hash": "cd416d098c25e96c1bc120a68c881df1"
+  }
+}

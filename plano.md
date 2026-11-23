@@ -3,7 +3,7 @@
 > **Projeto de portfólio | Engenharia de Dados + Análise de Dados + Energias Renováveis**  
 > **Problema central:** investigar restrições de geração (*constrained-off* / *curtailment*) em empreendimentos eólicos brasileiros com dados abertos do ONS.  
 > **Foco inicial:** Ceará; evolução para Nordeste e energia solar.  
-> **Status:** planejamento — nenhuma etapa de implementação foi concluída ainda.
+> **Status:** Fases 1 e 2 concluídas localmente; pronto para iniciar a Fase 3 (transformação e validação).
 
 ---
 
@@ -51,7 +51,7 @@ Demonstrar domínio de **Python, Pandas, SQL, ETL, séries temporais, análise e
 - **Geografia:** Ceará (`id_estado = 'CE'`, conforme dicionário do ONS).
 - **Período inicial de desenvolvimento:** janeiro a março de **2025**; ampliar depois que o pipeline estiver validado.
 - **Granularidade de origem:** registros semi-horários publicados pelo ONS.
-- **Recursos essenciais:** extração, tratamento, indicadores, banco SQLite e dashboard Streamlit.
+- **Recursos essenciais:** extração, tratamento, indicadores, banco SQLite e dashboard web em HTML, CSS e JavaScript.
 - **Publicação:** repositório público com instruções para reproduzir os resultados e, se viável, dashboard hospedado.
 
 ### 2.2. Segunda versão
@@ -114,6 +114,14 @@ O dicionário oficial contém, entre outros:
 | `cod_razaorestricao` | Motivo `REL`, `CNF`, `ENE`, `PAR` | Classificar sem alterar código original |
 | `cod_origemrestricao` | Origem `LOC`, `SIS` | Classificar local/sistêmica |
 | `dsc_restricao` | Texto descritivo da restrição | Preservar para exploração qualitativa |
+| `id_pontoconexao` | Identificador do ponto de conexão | Preservar como texto |
+| `nom_pontoconexao` | Nome do ponto de conexão | Preservar como texto |
+| `nom_agenteoperador` | Agente responsável pela operação | Preservar como texto |
+| `val_geracaonaorealizadaapurada` | Geração Não Realizada Apurada (GNRa) | Campo oficial prioritário; unidade pendente de confirmação documental |
+| `num_minutos_rel` | Minutos de restrição `REL` no patamar | Numérico entre 0 e 30 quando preenchido |
+| `num_minutos_cnf` | Minutos de restrição `CNF` no patamar | Numérico entre 0 e 30 quando preenchido |
+| `num_minutos_ene` | Minutos de restrição `ENE` no patamar | Numérico entre 0 e 30 quando preenchido |
+| `num_minutos_restricao` | Minutos com qualquer restrição no patamar | Não reaplicar automaticamente como ponderador da GNRa |
 
 **Atenção às unidades:** `MWmed` é potência média no intervalo, **não** energia em MWh. Como a série é semi-horária, a conversão de potência média para energia do intervalo é `MWmed × 0,5 h`, **desde que a duração/semântica desse registro tenha sido conferida**.
 
@@ -122,16 +130,16 @@ O dicionário oficial contém, entre outros:
 1. **Geração verificada (MWh)** = `Σ(val_geracao × duração_horas)` em registros válidos.
 2. **Geração de referência final (MWh)** = `Σ(val_geracaoreferenciafinal × duração_horas)` onde a referência existir.
 3. **Intervalos classificados com restrição** = contagem de intervalos com código de razão válido; documentar se a fonte inclui linhas sem restrição.
-4. **Déficit positivo frente à referência (MWh, indicador exploratório)** = `Σ(max(val_geracaoreferenciafinal − val_geracao, 0) × duração_horas)` **somente nos registros elegíveis** com referência válida e razão de restrição conforme os critérios documentados.
+4. **Geração Não Realizada Apurada (GNRa)** = utilizar prioritariamente `val_geracaonaorealizadaapurada`, campo publicado pelo ONS. A forma de agregação e conversão energética só será definida depois da confirmação documental da unidade. Manter a conciliação com `max(val_geracaoreferencia − val_geracao, 0)` como validação, não como substituição silenciosa do valor oficial.
 5. **Empreendimentos/conjuntos distintos** = `nunique(id_ons)` (não chamar de quantidade de parques individuais sem validação).
 6. **Distribuição das restrições** por razão (`REL`, `CNF`, `ENE`, `PAR`), origem (`LOC`, `SIS`), data e empreendimento.
 7. **Indicadores de qualidade** = percentual de nulos por campo, duplicidades e intervalos esperados/observados, sem equiparar lacunas da cobertura a dados faltantes de operação.
 
 ### 4.3. Regras metodológicas obrigatórias
 
-- **Não** chamar automaticamente o indicador 4 de “energia efetivamente desperdiçada” ou “constrained-off oficial”. Ele será apresentado como **diferença positiva estimada frente à referência em registros classificados como restrição** até validação da metodologia oficial de apuração.
+- **Não** chamar automaticamente a GNRa de “energia efetivamente desperdiçada”, energia indenizável ou perda financeira. Usar o nome oficial do campo e expor razões, cobertura e limitações.
 - **Não** substituir automaticamente nulos por zero em medidas de potência ou referência.
-- **Não** aplicar `max(..., 0)` para encobrir erros: manter também contagem de diferenças negativas e investigar casos.
+- Não recalcular a GNRa para substituir silenciosamente o valor oficial. A fórmula `max(..., 0)` pode ser usada para conciliação, mantendo divergências e casos negativos visíveis.
 - Não somar `MWmed` de intervalos diferentes como se fosse energia.
 - Não comparar dois períodos sem explicitar cobertura e disponibilidade dos registros.
 - Agregar **uma única linha por chave única de origem/intervalo** antes de somar, para evitar duplicidade ao combinar arquivos e cadastros.
@@ -156,12 +164,12 @@ O dicionário oficial contém, entre outros:
                            |
                     SQLite / tabelas
                            |
-                    Streamlit + Plotly
+             aplicação web — HTML + CSS + JavaScript
                            |
                    Dashboard interativo
 ```
 
-**Tecnologias:** Python 3.11+, Pandas, NumPy, Requests, PyArrow, SQLite (`sqlite3`), Streamlit, Plotly, Pytest, Git/GitHub. PostgreSQL pode substituir SQLite em uma futura expansão.
+**Tecnologias:** Python 3.11+, Pandas, NumPy, Requests, PyArrow, SQLite (`sqlite3`), HTML5, CSS3, JavaScript, Pytest, Git/GitHub. A interface consumirá somente dados processados e validados; o contrato entre o pipeline e o frontend será definido após o reconhecimento da base. PostgreSQL pode substituir SQLite em uma futura expansão.
 
 ### 5.1. Estrutura de pastas planejada
 
@@ -173,7 +181,11 @@ renewable-energy-intelligence/
 ├── .gitignore
 ├── .env.example
 ├── LICENSE
-├── app.py                       # Interface Streamlit
+├── frontend/
+│   ├── index.html               # Entrada da aplicação web
+│   └── assets/
+│       ├── css/styles.css       # Estilos responsivos
+│       └── js/app.js            # Comportamento e visualizações
 ├── src/
 │   ├── __init__.py
 │   ├── extract.py               # Descoberta e download dos CSVs ONS
@@ -216,13 +228,13 @@ renewable-energy-intelligence/
 
 ### Fase 0 — Preparação do ambiente
 
-- [ ] Criar repositório `renewable-energy-intelligence` no GitHub.
-- [ ] Criar pasta local e inicializar Git (`git init`) ou clonar o repositório.
-- [ ] Criar e adicionar este arquivo como `plano.md`.
-- [ ] Criar a árvore de diretórios proposta na seção 5.1.
-- [ ] Criar ambiente virtual do Python.
-- [ ] Instalar dependências e salvar `requirements.txt`.
-- [ ] Criar `.gitignore`: `.venv/`, `__pycache__/`, `.env`, `data/raw/*`, `data/processed/*`, `database/*.db`, mantendo `.gitkeep`.
+- [x] Criar repositório `renewable-energy-intelligence` no GitHub.
+- [x] Criar pasta local e inicializar Git (`git init`) ou clonar o repositório.
+- [x] Criar e adicionar este arquivo como `plano.md`.
+- [x] Criar a árvore de diretórios proposta na seção 5.1.
+- [x] Criar ambiente virtual do Python.
+- [x] Instalar dependências e salvar `requirements.txt`.
+- [x] Criar `.gitignore`: `.venv/`, `__pycache__/`, `.env`, `data/raw/*`, `data/processed/*`, `database/*.db`, mantendo `.gitkeep`.
 - [ ] Fazer primeiro commit com a estrutura e o plano.
 
 **Comandos sugeridos (Windows PowerShell):**
@@ -231,7 +243,7 @@ renewable-energy-intelligence/
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install --upgrade pip
-pip install pandas numpy requests pyarrow streamlit plotly pytest jupyter
+pip install pandas numpy requests pyarrow pytest jupyter
 pip freeze > requirements.txt
 ```
 
@@ -239,46 +251,46 @@ pip freeze > requirements.txt
 
 ### Fase 1 — Reconhecimento dos dados (primeira tarefa prática)
 
-- [ ] Abrir a página de restrições eólicas do ONS.
-- [ ] Baixar **manualmente o CSV de janeiro de 2025** na seção “Dados e recursos”.
-- [ ] Salvar o original em `data/raw/ons_eolica_2025_01.csv`.
-- [ ] Abrir o dicionário oficial e comparar os nomes de colunas.
-- [ ] Criar `notebooks/01_exploracao.ipynb`.
-- [ ] Inspecionar codificação, delimitador, separador decimal, tipos e quantidade de registros.
-- [ ] Executar: `.head()`, `.info()`, `.describe()`, `.isna().sum()`, `.duplicated().sum()`.
-- [ ] Verificar `id_estado`, `id_ons`, `ceg`, `din_instante`, `cod_razaorestricao` e medidas de potência.
-- [ ] Filtrar Ceará e verificar quantos empreendimentos/conjuntos e intervalos aparecem.
-- [ ] Investigar se cada linha representa uma observação única de `id_ons` + `din_instante`.
-- [ ] Registrar descobertas, dúvidas e decisões iniciais em `docs/dicionario_dados.md`.
+- [x] Abrir a página de restrições eólicas do ONS.
+- [x] Baixar **manualmente o CSV de janeiro de 2025** na seção “Dados e recursos”.
+- [x] Salvar o original em `data/raw/RESTRICAO_COFF_EOLICA_2025_01.csv`.
+- [x] Abrir o dicionário oficial e comparar os nomes de colunas.
+- [x] Criar `notebooks/01_exploracao.ipynb`.
+- [x] Inspecionar codificação, delimitador, separador decimal, tipos e quantidade de registros.
+- [x] Executar: `.head()`, `.info()`, `.describe()`, `.isna().sum()`, `.duplicated().sum()`.
+- [x] Verificar `id_estado`, `id_ons`, `ceg`, `din_instante`, `cod_razaorestricao` e medidas de potência.
+- [x] Filtrar Ceará e verificar quantos empreendimentos/conjuntos e intervalos aparecem.
+- [x] Investigar se cada linha representa uma observação única de `id_ons` + `din_instante`.
+- [x] Registrar descobertas, dúvidas e decisões iniciais em `docs/dicionario_dados.md`.
 
 **Critério de conclusão:** conseguir explicar o significado de cada coluna usada no projeto, quantidade de registros e cobertura temporal do mês.
 
 ### Fase 2 — Extração automática (`src/extract.py`)
 
-- [ ] Investigar a **API CKAN** do portal ONS para descobrir recursos por conjunto/mês e formato, sem copiar dezenas de URLs manualmente.
-- [ ] Criar função de descoberta de arquivos (`dataset`, `ano`, `mes`, `formato`).
-- [ ] Criar função de download com `requests`, timeout, tentativas com limite e mensagens de erro.
-- [ ] Salvar nomes previsíveis: `ons_eolica_YYYY_MM.csv`.
-- [ ] Não sobrescrever silenciosamente um arquivo que possa ter sido revisado; registrar versão/hash.
-- [ ] Salvar metadados da coleta (data/hora, URL de origem, nome, tamanho e hash quando possível).
-- [ ] Permitir escolher um mês ou uma faixa de meses.
-- [ ] Tratar meses sem arquivo publicado de forma explícita.
+- [x] Investigar a **API CKAN** do portal ONS para descobrir recursos por conjunto/mês e formato, sem copiar dezenas de URLs manualmente.
+- [x] Criar função de descoberta de arquivos (`dataset`, `ano`, `mes`, `formato`).
+- [x] Criar função de download com `requests`, timeout, tentativas com limite e mensagens de erro.
+- [x] Salvar nomes previsíveis: `ons_eolica_YYYY_MM.csv`.
+- [x] Não sobrescrever silenciosamente um arquivo que possa ter sido revisado; registrar versão/hash.
+- [x] Salvar metadados da coleta (data/hora, URL de origem, nome, tamanho e hash quando possível).
+- [x] Permitir escolher um mês ou uma faixa de meses.
+- [x] Tratar meses sem arquivo publicado de forma explícita.
 
 **Critério de conclusão:** um script baixa o mês solicitado e registra a origem sem intervenção manual. Caso a API não funcione, documentar uma fonte alternativa de URL e manter a ingestão reproduzível.
 
 ### Fase 3 — Transformação e validação (`src/transform.py` + `src/validate.py`)
 
-- [ ] Ler CSV com separador/decimal/codificação confirmados na Fase 1.
-- [ ] Padronizar nomes internos sem perder o mapeamento para os nomes originais.
-- [ ] Converter `din_instante` para data/hora e documentar o fuso aplicável.
-- [ ] Converter valores em MWmed para tipos numéricos, sem arredondar precocemente.
-- [ ] Filtrar `id_estado == 'CE'` para o MVP.
-- [ ] Manter `id_ons` como identificador e preservar `ceg` como texto (inclusive `-`).
-- [ ] Verificar duplicidades na chave e decidir a regra de resolução **antes** de somar.
-- [ ] Identificar nulos, valores negativos indevidos, códigos desconhecidos e datas fora do mês.
+- [x] Ler CSV com separador/decimal/codificação confirmados na Fase 1.
+- [x] Padronizar nomes internos sem perder o mapeamento para os nomes originais.
+- [x] Converter `din_instante` para data/hora e documentar o fuso aplicável.
+- [x] Converter valores em MWmed para tipos numéricos, sem arredondar precocemente.
+- [x] Filtrar `id_estado == 'CE'` para o MVP.
+- [x] Manter `id_ons` como identificador e preservar `ceg` como texto (inclusive `-`).
+- [x] Verificar duplicidades na chave e decidir a regra de resolução **antes** de somar.
+- [x] Identificar nulos, valores negativos indevidos, códigos desconhecidos e datas fora do mês.
 - [ ] Criar sinalizadores de elegibilidade para cada indicador.
 - [ ] Calcular `duracao_horas` somente após validar granularidade; inicialmente, expectativa de 0,5 h.
-- [ ] Criar colunas de energia em MWh e o indicador exploratório descrito na seção 4.
+- [ ] Preservar a GNRa oficial e criar colunas de energia em MWh somente após confirmar documentalmente as unidades e regras descritas na seção 4.
 - [ ] Salvar base tratada em `data/processed/restricoes_eolicas_ce_2025_01.parquet`.
 - [ ] Gerar relatório de qualidade: linhas de entrada/saída, nulos, duplicidades e rejeições justificadas.
 
@@ -288,7 +300,7 @@ pip freeze > requirements.txt
 
 - [ ] Contar linhas por mês, dia, hora, razão e origem de restrição.
 - [ ] Criar série diária e mensal da geração verificada em MWh.
-- [ ] Calcular déficit positivo estimado frente à referência **apenas para registros elegíveis**.
+- [ ] Agregar a GNRa oficial somente após confirmar sua unidade e os registros elegíveis; manter uma conciliação separada com geração e referência.
 - [ ] Contabilizar a cobertura das linhas elegíveis e as linhas sem referência.
 - [ ] Criar ranking por `id_ons` + nome de exibição, indicando usina ou conjunto quando possível.
 - [ ] Comparar razões `REL`, `CNF`, `ENE`, `PAR` e origens `LOC`, `SIS`.
@@ -309,9 +321,12 @@ pip freeze > requirements.txt
 
 **Critério de conclusão:** as consultas SQL reproduzem os mesmos totais do pipeline sem duplicações.
 
-### Fase 6 — Dashboard Streamlit (`app.py`)
+### Fase 6 — Dashboard web (`frontend/`)
 
-- [ ] Criar identidade visual limpa com título, descrição e explicação do escopo.
+- [ ] Definir e documentar o contrato de dados entre o pipeline Python e o frontend, sem permitir consultas diretas do navegador ao SQLite.
+- [ ] Criar estrutura semântica e acessível em HTML com identidade visual, título, descrição e explicação do escopo.
+- [ ] Criar estilos responsivos em CSS para telas grandes e dispositivos móveis.
+- [ ] Implementar o comportamento e as visualizações em JavaScript, com estados explícitos de carregamento, erro e ausência de dados.
 - [ ] Adicionar filtros de período, empreendimento/conjunto, razão e origem.
 - [ ] Criar **aba 1 — Visão geral**: cartões de geração verificada, déficit estimado, intervalos com restrição e empreendimentos/conjuntos cobertos.
 - [ ] Criar gráfico temporal diário/mensal do indicador de restrição.
@@ -321,7 +336,7 @@ pip freeze > requirements.txt
 - [ ] Exibir unidades em todos os gráficos: MWh, MWmed, contagem de intervalos, %.
 - [ ] Mostrar data da última coleta e aviso de que registros podem ser revisados.
 - [ ] Criar estados de interface para filtros sem resultado (não exibir zero falso).
-- [ ] Implementar cache de leitura (`st.cache_data`) se ajudar no desempenho.
+- [ ] Evitar carregamentos repetidos e desnecessários; definir cache do navegador ou da camada de dados somente quando houver evidência de necessidade.
 - [ ] Adicionar exportação CSV das agregações filtradas, se viável.
 
 **Critério de conclusão:** alguém que nunca viu o código consegue responder às perguntas da seção 1.3 utilizando apenas o dashboard.
@@ -330,7 +345,7 @@ pip freeze > requirements.txt
 
 - [ ] Criar dados sintéticos pequenos para testar as fórmulas sem depender da internet.
 - [ ] Testar que 100 MWmed em **um intervalo de 30 minutos** equivalem a **50 MWh**.
-- [ ] Testar que 120 MWmed de referência final e 100 MWmed verificados, com registro elegível de 30 minutos, geram **10 MWh** no indicador exploratório.
+- [ ] Testar separadamente a conciliação da GNRa em MWmed e a conversão de potência média para MWh, sem misturar o valor oficial com uma fórmula substituta.
 - [ ] Testar que `NaN` na referência não vira zero e não entra indevidamente no cálculo.
 - [ ] Testar que linhas duplicadas não duplicam totais.
 - [ ] Testar códigos desconhecidos e ausência de `ceg`.
@@ -365,7 +380,7 @@ pip freeze > requirements.txt
 - [ ] Criar exemplos pequenos e legalmente compatíveis apenas se necessários para reproduzir testes.
 - [ ] Criar `LICENSE` para o **código próprio**, sem confundir a licença do código com a dos dados públicos.
 - [ ] Fazer commits claros e publicar no GitHub.
-- [ ] Hospedar o Streamlit, caso o volume e a infraestrutura permitam.
+- [ ] Hospedar a aplicação web, caso o volume e a infraestrutura permitam, documentando como os dados processados são publicados e atualizados.
 - [ ] Testar o projeto em um ambiente limpo, seguindo somente o README.
 - [ ] Adicionar ao portfólio e currículo: problema, stack e link do projeto.
 
@@ -384,7 +399,7 @@ pip freeze > requirements.txt
 | 5 | `feat: clean and validate raw records` | Dataset tratado e relatório de qualidade |
 | 6 | `feat: calculate curtailment exploration metrics` | Métricas documentadas |
 | 7 | `feat: persist data and add SQL queries` | Banco e consultas |
-| 8 | `feat: build streamlit dashboard` | Aplicação navegável |
+| 8 | `feat: build web dashboard` | Aplicação HTML, CSS e JavaScript navegável |
 | 9 | `test: validate ETL and metric calculations` | Testes automatizados |
 | 10 | `docs: publish methodology and dashboard` | README e evidências |
 
@@ -404,8 +419,8 @@ python -m src.transform --year 2025 --month 1 --state CE
 # Executar pipeline completo (previsto para a Fase 5)
 python -m src.pipeline --year 2025 --month 1 --state CE
 
-# Abrir dashboard (previsto para a Fase 6)
-streamlit run app.py
+# Abrir a fundação do frontend localmente
+python -m http.server 8000 --directory frontend
 
 # Testar (previsto para a Fase 7)
 pytest -q
@@ -434,12 +449,12 @@ O MVP estará pronto quando:
 
 ## 10. Checklist — o que fazer agora (primeiro dia)
 
-1. [ ] Criar repositório e colocar este arquivo `plano.md` na raiz.
-2. [ ] Criar `.venv` e instalar `pandas`, `numpy`, `requests`, `pyarrow`, `streamlit`, `plotly`, `pytest` e `jupyter`.
-3. [ ] Criar `data/raw/`, `data/processed/`, `notebooks/` e `src/`.
-4. [ ] Baixar **um CSV eólico de janeiro/2025** diretamente do portal do ONS.
-5. [ ] Ler o CSV no Pandas, descobrir delimitador/decimal e imprimir colunas, tipos e cinco linhas.
-6. [ ] Filtrar Ceará e identificar quantidade de `id_ons`, intervalo de datas, valores ausentes e razões de restrição.
+1. [x] Criar repositório e colocar este arquivo `plano.md` na raiz.
+2. [x] Criar `.venv` e instalar `pandas`, `numpy`, `requests`, `pyarrow`, `pytest` e `jupyter`.
+3. [x] Criar `data/raw/`, `data/processed/`, `notebooks/` e `src/`.
+4. [x] Baixar **um CSV eólico de janeiro/2025** diretamente do portal do ONS.
+5. [x] Ler o CSV no Pandas, descobrir delimitador/decimal e imprimir colunas, tipos e cinco linhas.
+6. [x] Filtrar Ceará e identificar quantidade de `id_ons`, intervalo de datas, valores ausentes e razões de restrição.
 7. [ ] Salvar as primeiras observações no notebook e dar o primeiro commit.
 
 **Primeira entrega concreta:** notebook com inspeção de um mês, confirmação das colunas e um pequeno diagnóstico da cobertura no Ceará. **Não construir o dashboard antes de compreender a base.**
@@ -484,8 +499,9 @@ Manter esta seção atualizada conforme a implementação:
 |---|---|---|
 | 2026-11-22 | Começar por eólicas no Ceará, 1º trimestre de 2025 | Reduzir escopo inicial e garantir MVP executável |
 | 2026-11-22 | Usar `id_ons` como chave de identificação operacional | ONS pode publicar conjuntos sem CEG |
-| 2026-11-22 | Apresentar déficit frente à referência como estimativa exploratória | Evitar confundir análise própria com cálculo oficial de constrained-off |
-| A definir | Estratégia de extração (API CKAN ou URLs de recursos) | Validar durante a Fase 2 |
+| 2026-11-22 | Registrar como superada a premissa inicial de calcular déficit exploratório como indicador principal | O CSV revelou a GNRa oficial; o recálculo será mantido apenas para conciliação |
+| 2026-11-22 | Priorizar a GNRa publicada pelo ONS e usar o recálculo apenas para conciliação | O CSV possui `val_geracaonaorealizadaapurada`, ausente da premissa inicial do plano |
+| 2026-11-22 | Usar a API CKAN `package_show` para descobrir recursos mensais | A consulta oficial retornou um recurso único por período e formato, sem exigir URLs mensais manuais |
 | A definir | Convenção de fuso horário e duração do intervalo | Confirmar na exploração e documentação |
 
 ---
@@ -494,4 +510,4 @@ Manter esta seção atualizada conforme a implementação:
 
 **Um projeto público com código funcional + pipeline de dados + SQL + dashboard + análise técnica escrita + testes + documentação.** O valor do projeto não estará só no visual: estará em extrair dados oficiais, garantir qualidade, construir métricas defensáveis e comunicar conclusões com responsabilidade.
 
-**Próxima ação:** iniciar a **Fase 0** e executar a **Fase 1** com um único arquivo do ONS.
+**Próxima ação:** concluir a Fase 3 criando os sinalizadores de elegibilidade por indicador, validação de granularidade para `duracao_horas`, preservação da GNRa oficial, escrita do Parquet (`data/processed/restricoes_eolicas_ce_2025_01.parquet`) e geração do relatório consolidado de qualidade.

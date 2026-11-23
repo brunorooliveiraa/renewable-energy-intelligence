@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta
+      name="description"
+      content="Dashboard de inteligência sobre restrições de geração eólica com dados oficiais validados."
+    >
+    <title>Renewable Energy Intelligence</title>
+    <link rel="stylesheet" href="assets/css/styles.css">
+    <script src="assets/js/app.js" defer></script>
+  </head>
+  <body>
+    <header class="site-header">
+      <p class="eyebrow">Renewable Energy Intelligence</p>
+      <h1>Restrições de geração eólica</h1>
+      <p class="intro">
+        Uma análise reproduzível baseada em dados abertos oficiais do ONS.
+      </p>
+    </header>
+
+    <main>
+      <section class="status-card" aria-labelledby="project-status-title">
+        <p class="status-label">Status do projeto</p>
+        <h2 id="project-status-title">Preparação do ambiente</h2>
+        <p>
+          Os dados ainda não foram processados. Indicadores, gráficos e filtros só serão
+          exibidos depois que a fonte e a metodologia forem validadas.
+        </p>
+      </section>
+
+      <section class="principles" aria-labelledby="principles-title">
+        <h2 id="principles-title">Compromissos da análise</h2>
+        <div class="principles-grid">
+          <article>
+            <h3>Fonte rastreável</h3>
+            <p>Cada resultado deverá manter referência ao arquivo e à coleta de origem.</p>
+          </article>
+          <article>
+            <h3>Unidades explícitas</h3>
+            <p>Potência em MWmed não será apresentada como energia em MWh sem conversão validada.</p>
+          </article>
+          <article>
+            <h3>Limitações visíveis</h3>
+            <p>Ausências, cobertura e decisões metodológicas acompanharão os indicadores.</p>
+          </article>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <p>
+        Projeto independente, sem vínculo oficial com o ONS ou a ANEEL.
+        <span id="current-year"></span>
+      </p>
+    </footer>
+  </body>
+</html>
