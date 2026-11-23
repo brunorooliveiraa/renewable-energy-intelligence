@@ -63,4 +63,11 @@ Três registros reais (um `REL`, um `ENE` e um sem restrição) foram confrontad
 | `ENE` | `CEECVA` (Cataventos do Acaraú I) | `2025-01-01 08:00:00` | `3.719` | `1.8595` (`3.719 × 0.5`) | `<NA>` | `<NA>` | `0.953` (`max(4.672 - 3.719, 0) = 0.953`) |
 | Sem restrição | `CEECVA` (Cataventos do Acaraú I) | `2025-01-01 00:00:00` | `4.353` | `2.1765` (`4.353 × 0.5`) | `<NA>` | `<NA>` | `<NA>` (preservado sem substituição por zero) |
 
-**Conciliação global da GNRa (`src.metrics.reconcile_gnra_values`):** nas `5.692` linhas elegíveis do Ceará, `5.692` coincidiram exatamente com `max(geracao_referencia_mwmed - geracao_mwmed, 0)` (`0` divergências, erro absoluto máximo de `2,84 × 10⁻¹⁴`), com `888` casos em que `geracao_mwmed > geracao_referencia_mwmed` (explicitamente contabilizados e não mascarados).
+**Conciliação global da GNRa (`src.metrics.reconcile_gnra_values`):** nas `5.692` linhas elegíveis do Ceará, `5.692` coincidiram dentro da tolerância numérica (`1e-9`) com `max(geracao_referencia_mwmed - geracao_mwmed, 0)` (`0` divergências, erro absoluto máximo de `2,84 × 10⁻¹⁴`, compatível com aritmética de ponto flutuante IEEE-754), com `888` casos em que `geracao_mwmed > geracao_referencia_mwmed` (explicitamente contabilizados e não mascarados).
+
+## 4. Gráficos básicos gerados (Fase 4)
+
+Gerados diretamente a partir do Parquet validado por `src.metrics.generate_basic_phase4_charts`:
+- [Geração Verificada Diária (MWh)](imagens/fase4/geracao_diaria_mwh.svg)
+- [Intervalos com Restrição por Razão Oficial](imagens/fase4/restricoes_por_razao.svg)
+- [Perfil Horário de Restrições (00h–23h)](imagens/fase4/restricoes_por_hora.svg)

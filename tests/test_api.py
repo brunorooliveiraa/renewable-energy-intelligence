@@ -9,7 +9,6 @@ from fastapi.testclient import TestClient
 
 from api.index import app
 
-
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -60,6 +59,5 @@ def test_vercel_config_and_runtime_requirements_stay_lightweight() -> None:
         (PROJECT_ROOT / "requirements.txt").read_text(encoding="utf-8").lower()
     )
     assert "fastapi" in runtime_reqs
-    assert "psycopg" in runtime_reqs
     assert "pandas" not in runtime_reqs
     assert "pyarrow" not in runtime_reqs

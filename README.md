@@ -8,8 +8,8 @@ A aplicação foi estruturada para rodar em produção gratuita na **Vercel**, c
 - **API Serverless em FastAPI** (`api/index.py`) leve e sem dependência de `pandas`/`pyarrow`;
 - **Dashboard Web estático** (`frontend/`) em HTML5, CSS3 e JavaScript puro consumindo apenas rotas `/api/*`.
 
-**Escopo inicial do MVP:** Ceará (`CE`), 1º trimestre de 2025.  
-**Status atual:** Fases 0, 1 e 2 concluídas; Fase 3 em andamento (leitura CSV, padronização reversível, tipagem `instante`/MWmed, filtro UF, preservação de identificadores, unicidade de chave e auditoria de qualidade implementados e testados).
+**Escopo inicial do MVP:** Ceará (`CE`), 1º trimestre de 2025.
+**Status atual:** Fases 0, 1, 2, 3 e 4 concluídas (extração CKAN, transformação/validação Parquet, métricas, gráficos exploratórios básicos em `docs/imagens/fase4/` e achados documentados em `docs/achados_mvp.md`). Pronto para iniciar a Fase 5 (PostgreSQL Neon + rotas analíticas FastAPI).
 
 ## Ambiente local
 
@@ -22,7 +22,7 @@ python -m pip install --upgrade pip
 python -m pip install -r requirements-etl.txt
 ```
 
-- `requirements.txt` contém apenas as dependências leves de runtime da API serverless na Vercel (`fastapi` e `psycopg[binary]`).
+- `requirements.txt` contém apenas as dependências leves efetivamente usadas pelo runtime da API serverless na Vercel (`fastapi`, sem `pandas`/`pyarrow`; `psycopg[binary]` será adicionado na Fase 5).
 - `requirements-etl.txt` inclui `-r requirements.txt` mais as dependências de engenharia de dados, análise e testes (`pandas`, `numpy`, `requests`, `pyarrow`, `pytest`, `jupyter`, `uvicorn`, `httpx`).
 
 Copie `.env.example` para `.env` e configure `DATABASE_URL` (string *pooled* do Neon) e `DIRECT_DATABASE_URL` (string direta do Neon) quando for conectar ao PostgreSQL.

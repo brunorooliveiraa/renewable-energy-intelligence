@@ -13,7 +13,6 @@ import pandas as pd
 
 from src.transform import MWMED_INTERNAL_COLUMNS, SourceSchemaError
 
-
 CANDIDATE_KEY_COLUMNS: tuple[str, ...] = ("ons_id", "instante")
 VALID_RESTRICTION_REASON_CODES: frozenset[str] = frozenset({"REL", "CNF", "ENE", "PAR"})
 VALID_RESTRICTION_ORIGIN_CODES: frozenset[str] = frozenset({"LOC", "SIS"})
@@ -149,7 +148,7 @@ def check_and_resolve_key_duplicates(
 
     duplicate_key_mask = complete_keys_df.duplicated(subset=key_list, keep=False)
     duplicated_subset = complete_keys_df.loc[duplicate_key_mask]
-    duplicate_key_rows = int(len(duplicated_subset))
+    duplicate_key_rows = len(duplicated_subset)
 
     if duplicate_key_rows == 0:
         report: DuplicateKeyReport = {
@@ -168,7 +167,7 @@ def check_and_resolve_key_duplicates(
 
     # Identifica grupos únicos de chaves duplicadas e separa duplicidades exatas de conflitos.
     unique_dup_keys = duplicated_subset[key_list].drop_duplicates()
-    duplicate_key_groups = int(len(unique_dup_keys))
+    duplicate_key_groups = len(unique_dup_keys)
     sample_duplicate_keys = tuple(
         tuple(str(val) for val in row)
         for row in unique_dup_keys.iloc[:_MAX_ANOMALY_SAMPLES].itertuples(
@@ -184,11 +183,11 @@ def check_and_resolve_key_duplicates(
     conflicting_mask = deduped_complete.duplicated(subset=key_list, keep=False)
     conflicting_subset = deduped_complete.loc[conflicting_mask]
     conflicting_key_groups = (
-        int(len(conflicting_subset[key_list].drop_duplicates()))
+        len(conflicting_subset[key_list].drop_duplicates())
         if not conflicting_subset.empty
         else 0
     )
-    conflicting_key_rows = int(len(conflicting_subset))
+    conflicting_key_rows = len(conflicting_subset)
 
     if on_duplicate == "raise":
         raise DuplicateKeyError(
@@ -287,7 +286,7 @@ def run_quality_checks(
             f"O DataFrame contém nomes de colunas duplicados: {duplicated_col_names}."
         )
     if not isinstance(strict, bool):
-        raise ValueError("strict deve ser um valor booleano (True ou False).")
+        raise TypeError("strict deve ser um valor booleano (True ou False).")
 
     if (expected_year is None) != (expected_month is None):
         raise ValueError(

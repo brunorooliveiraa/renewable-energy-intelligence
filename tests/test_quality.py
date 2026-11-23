@@ -26,7 +26,6 @@ from src.validate import (
     run_quality_checks,
 )
 
-
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 JANUARY_RAW_FILE = PROJECT_ROOT / "data" / "raw" / "RESTRICAO_COFF_EOLICA_2025_01.csv"
 

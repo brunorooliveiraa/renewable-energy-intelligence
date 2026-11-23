@@ -10,13 +10,12 @@ import re
 import sys
 import tempfile
 from collections.abc import Iterator, Mapping, Sequence
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any, Literal, TypedDict
 from urllib.parse import urlparse
 
 import requests
-
 
 CKAN_ACTION_URL = "https://dados.ons.org.br/api/3/action"
 DEFAULT_TIMEOUT_SECONDS = 30.0
@@ -442,7 +441,7 @@ def build_metadata_filepath(raw_filepath: Path | str) -> Path:
     elif isinstance(raw_filepath, Path):
         normalized_path = raw_filepath
     else:
-        raise ValueError("raw_filepath deve ser um objeto Path ou uma string não vazia.")
+        raise TypeError("raw_filepath deve ser um objeto Path ou uma string não vazia.")
 
     if not normalized_path.name:
         raise ValueError("raw_filepath deve incluir um nome de arquivo válido.")
@@ -479,7 +478,7 @@ def build_archived_revision_filepath(
     elif isinstance(raw_filepath, Path):
         normalized_path = raw_filepath
     else:
-        raise ValueError("raw_filepath deve ser um objeto Path ou uma string não vazia.")
+        raise TypeError("raw_filepath deve ser um objeto Path ou uma string não vazia.")
 
     if not normalized_path.name or not normalized_path.stem:
         raise ValueError("raw_filepath deve incluir um nome de arquivo válido.")
@@ -523,7 +522,7 @@ def compute_file_sha256(
     elif isinstance(file_path, Path):
         path = file_path
     else:
-        raise ValueError("file_path deve ser um objeto Path ou uma string não vazia.")
+        raise TypeError("file_path deve ser um objeto Path ou uma string não vazia.")
 
     if not path.exists():
         raise FileNotFoundError(f"Arquivo não encontrado para cálculo de hash: {path}.")
@@ -565,7 +564,7 @@ def read_collection_metadata(metadata_path: Path | str) -> CollectionMetadata | 
     elif isinstance(metadata_path, Path):
         path = metadata_path
     else:
-        raise ValueError("metadata_path deve ser um objeto Path ou uma string não vazia.")
+        raise TypeError("metadata_path deve ser um objeto Path ou uma string não vazia.")
 
     if not path.exists():
         return None
@@ -607,7 +606,7 @@ def write_collection_metadata(
     elif isinstance(metadata_path, Path):
         path = metadata_path
     else:
-        raise ValueError("metadata_path deve ser um objeto Path ou uma string não vazia.")
+        raise TypeError("metadata_path deve ser um objeto Path ou uma string não vazia.")
 
     if path.exists() and path.is_dir():
         raise ValueError(f"metadata_path aponta para um diretório existente: {path}.")
@@ -856,7 +855,7 @@ def download_period_range(
     """
 
     if not isinstance(allow_missing, bool):
-        raise ValueError("allow_missing deve ser um valor booleano (True ou False).")
+        raise TypeError("allow_missing deve ser um valor booleano (True ou False).")
 
     if end_year is not None and end_month is None:
         raise ValueError("Informe end_month quando end_year for especificado.")
@@ -1315,7 +1314,7 @@ def _download_discovered_monthly_resource(
             "file_path": destination_path.as_posix(),
             "size_bytes": new_size,
             "sha256": new_sha256,
-            "collected_at_utc": datetime.now(timezone.utc).isoformat(),
+            "collected_at_utc": datetime.now(UTC).isoformat(),
             "ckan_resource_id": ckan_resource["id"],
             "ckan_resource_name": ckan_resource["name"],
             "source_url": ckan_resource["url"],
@@ -1549,7 +1548,7 @@ def _validate_chunk_size(chunk_size: int) -> int:
 def _validate_overwrite(overwrite: bool) -> bool:
     """Valida o sinalizador booleano de permissão de sobrescrita."""
     if not isinstance(overwrite, bool):
-        raise ValueError("overwrite deve ser um valor booleano (True ou False).")
+        raise TypeError("overwrite deve ser um valor booleano (True ou False).")
     return overwrite
 
 
@@ -1566,7 +1565,7 @@ def _validate_output_dir(output_dir: Path | str) -> Path:
     elif isinstance(output_dir, Path):
         normalized_dir = output_dir
     else:
-        raise ValueError("output_dir deve ser um objeto Path ou uma string não vazia.")
+        raise TypeError("output_dir deve ser um objeto Path ou uma string não vazia.")
 
     if normalized_dir.exists() and not normalized_dir.is_dir():
         raise ValueError(
@@ -1588,7 +1587,7 @@ def _validate_destination(destination: Path | str, *, overwrite: bool) -> Path:
     elif isinstance(destination, Path):
         normalized_destination = destination
     else:
-        raise ValueError("destination deve ser um objeto Path ou uma string não vazia.")
+        raise TypeError("destination deve ser um objeto Path ou uma string não vazia.")
 
     if normalized_destination.exists():
         if normalized_destination.is_dir():

@@ -17,7 +17,7 @@ import sys
 import tempfile
 from collections import Counter
 from collections.abc import Iterable, Mapping, Sequence
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from types import MappingProxyType
 from typing import Any, Literal, TypedDict
@@ -26,7 +26,6 @@ import numpy as np
 import pandas as pd
 
 from src.extract import build_raw_filepath, compute_file_sha256
-
 
 CSV_SEPARATOR = ";"
 CSV_DECIMAL_SEPARATOR = "."
@@ -365,7 +364,7 @@ def read_raw_ons_csv(file_path: Path | str) -> pd.DataFrame:
     """
 
     path = _validate_raw_csv_path(file_path)
-    header, expected_row_count = _validate_csv_structure(path)
+    _header, expected_row_count = _validate_csv_structure(path)
 
     try:
         dataframe = pd.read_csv(
@@ -460,7 +459,7 @@ def parse_instante_column(
     if not isinstance(column, str) or not column.strip():
         raise ValueError("column deve ser uma string não vazia.")
     if not isinstance(strict, bool):
-        raise ValueError("strict deve ser um valor booleano (True ou False).")
+        raise TypeError("strict deve ser um valor booleano (True ou False).")
     if column not in dataframe.columns:
         raise SourceSchemaError(
             f"Coluna de data/hora ausente no DataFrame: {column!r}."
@@ -584,7 +583,7 @@ def convert_mwmed_columns(
     if not isinstance(dataframe, pd.DataFrame):
         raise TypeError("dataframe deve ser um pandas.DataFrame.")
     if not isinstance(strict, bool):
-        raise ValueError("strict deve ser um valor booleano (True ou False).")
+        raise TypeError("strict deve ser um valor booleano (True ou False).")
 
     target_columns = tuple(columns)
     if not target_columns:
@@ -676,7 +675,7 @@ def filter_by_state(
     if not isinstance(column, str) or not column.strip():
         raise ValueError("column deve ser uma string não vazia.")
     if not isinstance(allow_empty, bool):
-        raise ValueError("allow_empty deve ser um valor booleano (True ou False).")
+        raise TypeError("allow_empty deve ser um valor booleano (True ou False).")
     if column not in dataframe.columns:
         raise SourceSchemaError(f"Coluna de UF ausente no DataFrame: {column!r}.")
 
@@ -760,7 +759,7 @@ def preserve_operational_identifiers(
     if ons_id_column == ceg_column:
         raise ValueError("ons_id_column e ceg_column devem ser colunas distintas.")
     if not isinstance(strict_ons_id, bool):
-        raise ValueError("strict_ons_id deve ser um valor booleano (True ou False).")
+        raise TypeError("strict_ons_id deve ser um valor booleano (True ou False).")
 
     missing_columns = [
         col for col in (ons_id_column, ceg_column) if col not in dataframe.columns
@@ -823,14 +822,15 @@ def add_eligibility_flags(
     ``pd.BooleanDtype`` que permitem às camadas de métricas e SQL calcular
     indicadores e taxas de cobertura com rastreabilidade:
     - ``elegivel_geracao_verificada``: ``instante`` válido, ``ons_id`` válido e
-      ``geracao_mwmed`` finito ``>= 0``.
+      ``geracao_mwmed`` finito (sem impor piso zero não documentado pelo ONS).
     - ``elegivel_referencia_final``: ``instante`` válido, ``ons_id`` válido e
-      ``geracao_referencia_final_mwmed`` finito ``>= 0``.
+      ``geracao_referencia_final_mwmed`` finito (sem impor piso zero não
+      documentado pelo ONS).
     - ``possui_restricao_classificada``: ``restricao_razao_codigo`` pertence ao
       domínio oficial ``{REL, CNF, ENE, PAR}``.
     - ``elegivel_gnra``: ``possui_restricao_classificada`` e
       ``geracao_nao_realizada_apurada`` preenchida com número decimal finito
-      ``>= 0`` (preservando o valor bruto da GNRa sem converter para MWh).
+      (preservando o valor bruto da GNRa sem converter para MWh).
     - ``elegivel_enriquecimento_aneel``: ``ceg`` preenchido, não vazio e
       diferente de ``'-'`` (conjuntos de usinas não são elegíveis).
 
@@ -901,21 +901,14 @@ def add_eligibility_flags(
         np.isfinite(geracao.fillna(0.0).to_numpy(dtype="float64")),
         index=result.index,
     )
-    elegivel_geracao_verificada = (
-        valid_key & (~geracao.isna()) & geracao_finite & (geracao >= 0).fillna(False)
-    )
+    elegivel_geracao_verificada = valid_key & (~geracao.isna()) & geracao_finite
 
     ref_final = pd.to_numeric(result["geracao_referencia_final_mwmed"], errors="coerce")
     ref_final_finite = pd.Series(
         np.isfinite(ref_final.fillna(0.0).to_numpy(dtype="float64")),
         index=result.index,
     )
-    elegivel_referencia_final = (
-        valid_key
-        & (~ref_final.isna())
-        & ref_final_finite
-        & (ref_final >= 0).fillna(False)
-    )
+    elegivel_referencia_final = valid_key & (~ref_final.isna()) & ref_final_finite
 
     reason_series = result["restricao_razao_codigo"].astype("string")
     possui_restricao_classificada = (~reason_series.isna()) & (
@@ -929,10 +922,7 @@ def add_eligibility_flags(
         source_column="val_geracaonaorealizadaapurada",
     )
     elegivel_gnra = (
-        valid_key
-        & possui_restricao_classificada
-        & (~gnra_numeric.isna())
-        & (gnra_numeric >= 0).fillna(False)
+        valid_key & possui_restricao_classificada & (~gnra_numeric.isna())
     )
 
     ceg_series = result["ceg"].astype("string")
@@ -1022,7 +1012,7 @@ def validate_granularity_and_add_duration(
             "expected_step_minutes deve ser um inteiro positivo divisor de 60 (ex.: 30)."
         )
     if not isinstance(strict, bool):
-        raise ValueError("strict deve ser um valor booleano (True ou False).")
+        raise TypeError("strict deve ser um valor booleano (True ou False).")
 
     missing = [col for col in ("ons_id", "instante") if col not in dataframe.columns]
     if missing:
@@ -1071,7 +1061,7 @@ def validate_granularity_and_add_duration(
             .dt.total_seconds()
             .dropna()
         )
-        checked_transitions = int(len(diffs_seconds))
+        checked_transitions = len(diffs_seconds)
         expected_seconds = float(expected_step_minutes * 60)
 
         for step_sec in diffs_seconds.unique():
@@ -1303,7 +1293,7 @@ def build_processed_filepath(
     elif isinstance(output_dir, Path):
         normalized_dir = output_dir
     else:
-        raise ValueError("output_dir deve ser um objeto Path ou uma string não vazia.")
+        raise TypeError("output_dir deve ser um objeto Path ou uma string não vazia.")
 
     if normalized_dir.exists() and not normalized_dir.is_dir():
         raise ValueError(
@@ -1324,7 +1314,7 @@ def build_quality_report_filepath(parquet_path: Path | str) -> Path:
     elif isinstance(parquet_path, Path):
         path = parquet_path
     else:
-        raise ValueError("parquet_path deve ser um objeto Path ou uma string não vazia.")
+        raise TypeError("parquet_path deve ser um objeto Path ou uma string não vazia.")
 
     if not path.name:
         raise ValueError("parquet_path deve incluir um nome de arquivo válido.")
@@ -1355,7 +1345,7 @@ def write_processed_parquet(
     elif isinstance(destination, Path):
         path = destination
     else:
-        raise ValueError("destination deve ser um objeto Path ou uma string não vazia.")
+        raise TypeError("destination deve ser um objeto Path ou uma string não vazia.")
 
     if path.exists() and path.is_dir():
         raise ValueError(f"destination aponta para um diretório existente: {path}.")
@@ -1393,10 +1383,12 @@ def write_quality_report(
     elif isinstance(report_path, Path):
         path = report_path
     else:
-        raise ValueError("report_path deve ser um objeto Path ou uma string não vazia.")
+        raise TypeError("report_path deve ser um objeto Path ou uma string não vazia.")
 
     if path.exists() and path.is_dir():
         raise ValueError(f"report_path aponta para um diretório existente: {path}.")
+
+    serialized = json.dumps(report, indent=2, ensure_ascii=False) + "\n"
 
     path.parent.mkdir(parents=True, exist_ok=True)
     fd, temp_name = tempfile.mkstemp(
@@ -1405,14 +1397,17 @@ def write_quality_report(
         dir=path.parent,
     )
     temp_path = Path(temp_name)
+    fd_closed = False
 
     try:
-        serialized = json.dumps(report, indent=2, ensure_ascii=False) + "\n"
         with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            fd_closed = True
             handle.write(serialized)
             handle.flush()
         temp_path.replace(path)
     except BaseException:
+        if not fd_closed:
+            os.close(fd)
         temp_path.unlink(missing_ok=True)
         raise
 
@@ -1494,7 +1489,7 @@ def transform_monthly_dataset(
         "output_parquet_path": parquet_path.as_posix(),
         "output_parquet_size_bytes": parquet_size_bytes,
         "output_parquet_sha256": parquet_sha256,
-        "processed_at_utc": datetime.now(timezone.utc).isoformat(),
+        "processed_at_utc": datetime.now(UTC).isoformat(),
         "target_state": state_filter_report["target_state"],
         "expected_year": year,
         "expected_month": month,
@@ -1686,7 +1681,7 @@ def _validate_raw_csv_path(file_path: Path | str) -> Path:
     elif isinstance(file_path, Path):
         path = file_path
     else:
-        raise ValueError("file_path deve ser um objeto Path ou uma string não vazia.")
+        raise TypeError("file_path deve ser um objeto Path ou uma string não vazia.")
 
     if not path.exists():
         raise FileNotFoundError(f"CSV bruto não encontrado: {path}.")

@@ -43,7 +43,6 @@ from src.transform import (
     write_processed_parquet,
 )
 
-
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 JANUARY_RAW_FILE = PROJECT_ROOT / "data" / "raw" / "RESTRICAO_COFF_EOLICA_2025_01.csv"
 JANUARY_RAW_SHA256 = "2DBE2C4232126CC03BE12CD96977B58EBAD8FD0E07E4431F618A4696D17C02AC"
@@ -580,7 +579,8 @@ def test_add_eligibility_flags_classifies_all_indicators_without_dropping_rows()
 
     assert len(flagged) == 4
     assert "elegivel_geracao_verificada" not in typed.columns
-    assert list(flagged["elegivel_geracao_verificada"]) == [True, False, False, True]
+    # Valores negativos finitos sao elegiveis (dicionario ONS nao estabelece piso zero).
+    assert list(flagged["elegivel_geracao_verificada"]) == [True, True, False, True]
     assert list(flagged["elegivel_referencia_final"]) == [True, False, False, True]
     assert list(flagged["possui_restricao_classificada"]) == [True, True, False, False]
     assert list(flagged["elegivel_gnra"]) == [True, True, False, False]
@@ -589,7 +589,7 @@ def test_add_eligibility_flags_classifies_all_indicators_without_dropping_rows()
     assert isinstance(flagged["geracao_nao_realizada_apurada"].dtype, pd.StringDtype)
     assert report == {
         "total_rows": 4,
-        "elegivel_geracao_verificada_rows": 2,
+        "elegivel_geracao_verificada_rows": 3,
         "elegivel_referencia_final_rows": 2,
         "possui_restricao_classificada_rows": 2,
         "elegivel_gnra_rows": 2,
@@ -695,12 +695,11 @@ def test_add_energy_and_preserve_gnra_computes_50mwh_for_100mwmed_half_hour() ->
 
     enriched, report = add_energy_and_preserve_gnra(with_dur)
 
-    # 100 MWmed * 0.5 h = 50.0 MWh; 120 MWmed * 0.5 h = 60.0 MWh.
+    # 100 MWmed * 0.5 h = 50.0 MWh; -10 MWmed * 0.5 h = -5.0 MWh (sem piso zero artificial).
     assert enriched.loc[0, "geracao_verificada_mwh"] == 50.0
     assert enriched.loc[0, "geracao_referencia_final_mwh"] == 60.0
-    # Nulos e inelegiveis (geracao negativa) viram pd.NA, nunca 0.0.
     assert pd.isna(enriched.loc[1, "geracao_verificada_mwh"])
-    assert pd.isna(enriched.loc[2, "geracao_verificada_mwh"])
+    assert enriched.loc[2, "geracao_verificada_mwh"] == -5.0
     assert pd.isna(enriched.loc[1, "geracao_referencia_final_mwh"])
     assert enriched.loc[2, "geracao_referencia_final_mwh"] == 25.0
     # GNRa preservada como Float64 sem conversao para MWh.
@@ -709,7 +708,7 @@ def test_add_energy_and_preserve_gnra_computes_50mwh_for_100mwmed_half_hour() ->
     assert "gnra_mwh" not in enriched.columns
     assert report == {
         "total_rows": 3,
-        "geracao_verificada_mwh_rows": 1,
+        "geracao_verificada_mwh_rows": 2,
         "geracao_referencia_final_mwh_rows": 2,
         "gnra_preserved_non_null_rows": 2,
         "gnra_converted_to_mwh": False,
@@ -760,7 +759,7 @@ def test_transform_monthly_dataset_writes_parquet_and_quality_report_and_cli_run
         writer.writerow(row_rn)
 
     out_dir = tmp_path / "processed"
-    processed_df, parquet_path, report_path, report = transform_monthly_dataset(
+    _processed_df, parquet_path, report_path, _report = transform_monthly_dataset(
         csv_path,
         year=2025,
         month=1,
@@ -829,3 +828,35 @@ def test_write_processed_parquet_rejects_directory_destination(tmp_path: Path) -
     df = pd.DataFrame({"a": [1]})
     with pytest.raises(ValueError, match="diretório existente"):
         write_processed_parquet(df, tmp_path)
+
+
+def test_atomic_writers_clean_part_files_on_io_failure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from src.transform import write_quality_report
+
+    df = pd.DataFrame({"a": [1]})
+    parquet_target = tmp_path / "saida.parquet"
+
+    def fail_to_parquet(self, *args, **kwargs):
+        raise OSError("falha simulada de disco ao gravar Parquet")
+
+    monkeypatch.setattr(pd.DataFrame, "to_parquet", fail_to_parquet)
+    with pytest.raises(OSError, match="falha simulada de disco"):
+        write_processed_parquet(df, parquet_target)
+
+    assert not parquet_target.exists()
+    assert list(tmp_path.glob("*.part")) == []
+
+    report_target = tmp_path / "saida.parquet.quality_report.json"
+
+    def fail_replace(self, target):
+        raise OSError("falha simulada de I/O ao mover relatorio")
+
+    monkeypatch.setattr(Path, "replace", fail_replace)
+    with pytest.raises(OSError, match="falha simulada de I/O"):
+        write_quality_report({"status": "ok"}, report_target)  # type: ignore[arg-type]
+
+    assert not report_target.exists()
+    assert list(tmp_path.glob("*.part")) == []

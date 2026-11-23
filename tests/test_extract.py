@@ -9,8 +9,8 @@ import pytest
 import requests
 
 from src.extract import (
-    AmbiguousResourceError,
     DEFAULT_RAW_DIR,
+    AmbiguousResourceError,
     ResourceDiscoveryError,
     ResourceDownloadError,
     ResourceNotFoundError,
@@ -30,7 +30,6 @@ from src.extract import (
     resolve_dataset_id,
     write_collection_metadata,
 )
-
 
 JANUARY_CSV = {
     "id": "csv-resource-id",
@@ -207,8 +206,7 @@ class FakeDownloadResponse:
 
     def iter_content(self, chunk_size: int = 1) -> Iterator[bytes]:
         assert chunk_size >= 1
-        for chunk in self.chunks:
-            yield chunk
+        yield from self.chunks
         if self.stream_error is not None:
             raise self.stream_error
 
@@ -435,7 +433,7 @@ def test_rejects_invalid_download_arguments(
 ) -> None:
     session = FakeDownloadSession([])
 
-    with pytest.raises(ValueError):
+    with pytest.raises((ValueError, TypeError)):
         download_resource_file(
             url,
             tmp_path / "out.csv",

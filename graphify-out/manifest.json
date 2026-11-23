@@ -196,5 +196,221 @@
     "seen": 1795400495.1615992,
     "ast_hash": "056196fe3a21c99a5667b60bf2678b4e",
     "semantic_hash": "056196fe3a21c99a5667b60bf2678b4e"
+  },
+  "C:\\Users\\Brunin\\Desktop\\Projeto_eolica\\api\\__init__.py": {
+    "mtime": 1795397849.73707,
+    "seen": 1795401593.3134766,
+    "ast_hash": "dedcc29d26e0fe13cc986d9fea41ba63",
+    "semantic_hash": "dedcc29d26e0fe13cc986d9fea41ba63"
+  },
+  "C:\\Users\\Brunin\\Desktop\\Projeto_eolica\\api\\index.py": {
+    "mtime": 1795401418.090707,
+    "seen": 1795401593.3134766,
+    "ast_hash": "b6b03c20ebe2ff7826a4015959b03a83",
+    "semantic_hash": "b6b03c20ebe2ff7826a4015959b03a83"
+  },
+  "C:\\Users\\Brunin\\Desktop\\Projeto_eolica\\docs\\referencias\\ons\\DicionarioDados_RestricaoContrainedoff_UsiEolicas.json": {
+    "mtime": 1795387250.7771308,
+    "seen": 1795401593.3134766,
+    "ast_hash": "6d49e11447ed1355282456a741457a9e",
+    "semantic_hash": "6d49e11447ed1355282456a741457a9e"
+  },
+  "C:\\Users\\Brunin\\Desktop\\Projeto_eolica\\frontend\\assets\\js\\app.js": {
+    "mtime": 1795386195.4835446,
+    "seen": 1795401593.3134766,
+    "ast_hash": "618d8f0526ad23e5db69ef384d6cbdd4",
+    "semantic_hash": "618d8f0526ad23e5db69ef384d6cbdd4"
+  },
+  "C:\\Users\\Brunin\\Desktop\\Projeto_eolica\\sql\\schema.sql": {
+    "mtime": 1795397902.4274778,
+    "seen": 1795401593.3134766,
+    "ast_hash": "e11ca66cbd36a03cfa8a8308488dbe1f",
+    "semantic_hash": "e11ca66cbd36a03cfa8a8308488dbe1f"
+  },
+  "C:\\Users\\Brunin\\Desktop\\Projeto_eolica\\src\\__init__.py": {
+    "mtime": 1795385678.521852,
+    "seen": 1795401593.3134766,
+    "ast_hash": "a9707c6229bd218ec7e6336bb0bf5376",
+    "semantic_hash": "a9707c6229bd218ec7e6336bb0bf5376"
+  },
+  "C:\\Users\\Brunin\\Desktop\\Projeto_eolica\\src\\database.py": {
+    "mtime": 1795397901.1524298,
+    "seen": 1795401593.3134766,
+    "ast_hash": "69620a6b7278a5de43dde422d03c6466",
+    "semantic_hash": "69620a6b7278a5de43dde422d03c6466"
+  },
+  "C:\\Users\\Brunin\\Desktop\\Projeto_eolica\\src\\extract.py": {
+    "mtime": 1795401460.976388,
+    "seen": 1795401593.3134766,
+    "ast_hash": "10d22b95858c659bc0aa814dc6e0d514",
+    "semantic_hash": "10d22b95858c659bc0aa814dc6e0d514"
+  },
+  "C:\\Users\\Brunin\\Desktop\\Projeto_eolica\\src\\metrics.py": {
+    "mtime": 1795401460.9779737,
+    "seen": 1795401593.3134766,
+    "ast_hash": "de715565b27780fe19124760518d476b",
+    "semantic_hash": "de715565b27780fe19124760518d476b"
+  },
+  "C:\\Users\\Brunin\\Desktop\\Projeto_eolica\\src\\pipeline.py": {
+    "mtime": 1795385683.1235213,
+    "seen": 1795401593.3134766,
+    "ast_hash": "147889a0a86beac112e06f82da3d6bf6",
+    "semantic_hash": "147889a0a86beac112e06f82da3d6bf6"
+  },
+  "C:\\Users\\Brunin\\Desktop\\Projeto_eolica\\src\\transform.py": {
+    "mtime": 1795401460.979713,
+    "seen": 1795401593.3134766,
+    "ast_hash": "28b09035e47170a553c60af850fefff1",
+    "semantic_hash": "28b09035e47170a553c60af850fefff1"
+  },
+  "C:\\Users\\Brunin\\Desktop\\Projeto_eolica\\src\\validate.py": {
+    "mtime": 1795401460.9807613,
+    "seen": 1795401593.3134766,
+    "ast_hash": "f4f677aefc2f1a65b5615c9bc78706e3",
+    "semantic_hash": "f4f677aefc2f1a65b5615c9bc78706e3"
+  },
+  "C:\\Users\\Brunin\\Desktop\\Projeto_eolica\\tests\\test_api.py": {
+    "mtime": 1795401418.0813906,
+    "seen": 1795401593.3134766,
+    "ast_hash": "aa838351f68df95e24e92d48582c84a6",
+    "semantic_hash": "aa838351f68df95e24e92d48582c84a6"
+  },
+  "C:\\Users\\Brunin\\Desktop\\Projeto_eolica\\tests\\test_extract.py": {
+    "mtime": 1795401516.3450174,
+    "seen": 1795401593.3134766,
+    "ast_hash": "d8a42e3167acec2eafcf19d9f130d73a",
+    "semantic_hash": "d8a42e3167acec2eafcf19d9f130d73a"
+  },
+  "C:\\Users\\Brunin\\Desktop\\Projeto_eolica\\tests\\test_metrics.py": {
+    "mtime": 1795401418.08339,
+    "seen": 1795401593.3134766,
+    "ast_hash": "0d9563d6ec52149171a1c1dbd9bd654b",
+    "semantic_hash": "0d9563d6ec52149171a1c1dbd9bd654b"
+  },
+  "C:\\Users\\Brunin\\Desktop\\Projeto_eolica\\tests\\test_quality.py": {
+    "mtime": 1795401418.0853913,
+    "seen": 1795401593.3134766,
+    "ast_hash": "33e0b0a2f685ecdc5a59365b35a616c7",
+    "semantic_hash": "33e0b0a2f685ecdc5a59365b35a616c7"
+  },
+  "C:\\Users\\Brunin\\Desktop\\Projeto_eolica\\tests\\test_references.py": {
+    "mtime": 1795401418.0813906,
+    "seen": 1795401593.3134766,
+    "ast_hash": "ee7e3869c9cc2ce0f7b161a1f6e1fdd6",
+    "semantic_hash": "ee7e3869c9cc2ce0f7b161a1f6e1fdd6"
+  },
+  "C:\\Users\\Brunin\\Desktop\\Projeto_eolica\\tests\\test_structure.py": {
+    "mtime": 1795401418.0813906,
+    "seen": 1795401593.3134766,
+    "ast_hash": "72e454b81a5063fce61effdac3911a04",
+    "semantic_hash": "72e454b81a5063fce61effdac3911a04"
+  },
+  "C:\\Users\\Brunin\\Desktop\\Projeto_eolica\\tests\\test_transform.py": {
+    "mtime": 1795401418.0873942,
+    "seen": 1795401593.3134766,
+    "ast_hash": "5fc8c02805cc085aa3c6016bae4c596f",
+    "semantic_hash": "5fc8c02805cc085aa3c6016bae4c596f"
+  },
+  "C:\\Users\\Brunin\\Desktop\\Projeto_eolica\\vercel.json": {
+    "mtime": 1795397847.106133,
+    "seen": 1795401593.3134766,
+    "ast_hash": "d8c10814714256dc2491df856cfc1cde",
+    "semantic_hash": "d8c10814714256dc2491df856cfc1cde"
+  },
+  "C:\\Users\\Brunin\\Desktop\\Projeto_eolica\\AGENTS.md": {
+    "mtime": 1795397899.3826053,
+    "seen": 1795401593.3134766,
+    "ast_hash": "867c5611bbceca2afcff57f742821840",
+    "semantic_hash": "867c5611bbceca2afcff57f742821840"
+  },
+  "C:\\Users\\Brunin\\Desktop\\Projeto_eolica\\README.md": {
+    "mtime": 1795401251.093952,
+    "seen": 1795401593.3134766,
+    "ast_hash": "20bae6d3ac5668f6d9968aae02c7e2a6",
+    "semantic_hash": "20bae6d3ac5668f6d9968aae02c7e2a6"
+  },
+  "C:\\Users\\Brunin\\Desktop\\Projeto_eolica\\docs\\achados_mvp.md": {
+    "mtime": 1795401252.4525125,
+    "seen": 1795401593.3134766,
+    "ast_hash": "4758ebb0bff3473a102bf0af6fec0b12",
+    "semantic_hash": "4758ebb0bff3473a102bf0af6fec0b12"
+  },
+  "C:\\Users\\Brunin\\Desktop\\Projeto_eolica\\docs\\arquitetura_vercel.md": {
+    "mtime": 1795401246.838623,
+    "seen": 1795401593.3134766,
+    "ast_hash": "3dcb30bcf344f17ccdb31920fc445126",
+    "semantic_hash": "3dcb30bcf344f17ccdb31920fc445126"
+  },
+  "C:\\Users\\Brunin\\Desktop\\Projeto_eolica\\docs\\dicionario_dados.md": {
+    "mtime": 1795396957.1815467,
+    "seen": 1795401593.3134766,
+    "ast_hash": "1b6239cd03b3a8c8cbe4c02f6de46f56",
+    "semantic_hash": "1b6239cd03b3a8c8cbe4c02f6de46f56"
+  },
+  "C:\\Users\\Brunin\\Desktop\\Projeto_eolica\\docs\\extracao.md": {
+    "mtime": 1795392859.3989644,
+    "seen": 1795401593.3134766,
+    "ast_hash": "92dcc42fb98fd2b627587c4dfd507468",
+    "semantic_hash": "92dcc42fb98fd2b627587c4dfd507468"
+  },
+  "C:\\Users\\Brunin\\Desktop\\Projeto_eolica\\docs\\metodologia.md": {
+    "mtime": 1795396956.3546238,
+    "seen": 1795401593.3134766,
+    "ast_hash": "35912c095b56244fdbabe08dea2c2a83",
+    "semantic_hash": "35912c095b56244fdbabe08dea2c2a83"
+  },
+  "C:\\Users\\Brunin\\Desktop\\Projeto_eolica\\docs\\referencias\\ons\\README.md": {
+    "mtime": 1795387287.467439,
+    "seen": 1795401593.3134766,
+    "ast_hash": "8dc138f51fefc06b289b0a3d6130d79e",
+    "semantic_hash": "8dc138f51fefc06b289b0a3d6130d79e"
+  },
+  "C:\\Users\\Brunin\\Desktop\\Projeto_eolica\\frontend\\index.html": {
+    "mtime": 1795386192.9979234,
+    "seen": 1795401593.3134766,
+    "ast_hash": "04b7ca9dfcde1042f65c6a14b9172043",
+    "semantic_hash": "04b7ca9dfcde1042f65c6a14b9172043"
+  },
+  "C:\\Users\\Brunin\\Desktop\\Projeto_eolica\\plano.md": {
+    "mtime": 1795401249.695969,
+    "seen": 1795401593.3134766,
+    "ast_hash": "8654d0e03fc1380b9b6f1131da1a17c5",
+    "semantic_hash": "8654d0e03fc1380b9b6f1131da1a17c5"
+  },
+  "C:\\Users\\Brunin\\Desktop\\Projeto_eolica\\requirements-etl.txt": {
+    "mtime": 1795401518.0759246,
+    "seen": 1795401593.3134766,
+    "ast_hash": "e24aa782f76bfb43f2011e442c9ffb69",
+    "semantic_hash": "e24aa782f76bfb43f2011e442c9ffb69"
+  },
+  "C:\\Users\\Brunin\\Desktop\\Projeto_eolica\\requirements.txt": {
+    "mtime": 1795401245.3361776,
+    "seen": 1795401593.3134766,
+    "ast_hash": "07c331efba19cac66110113de2eb99ce",
+    "semantic_hash": "07c331efba19cac66110113de2eb99ce"
+  },
+  "C:\\Users\\Brunin\\Desktop\\Projeto_eolica\\docs\\referencias\\ons\\DicionarioDados_RestricaoContrainedoff_UsiEolicas.pdf": {
+    "mtime": 1795387430.2413433,
+    "seen": 1795401593.3134766,
+    "ast_hash": "90e5786c1cdaddaa72e22b7d7cbb95be",
+    "semantic_hash": "90e5786c1cdaddaa72e22b7d7cbb95be"
+  },
+  "C:\\Users\\Brunin\\Desktop\\Projeto_eolica\\docs\\imagens\\fase4\\geracao_diaria_mwh.svg": {
+    "mtime": 1795401217.8590949,
+    "seen": 1795401593.3134766,
+    "ast_hash": "1e6f283b94880c88e4fcd3f1535d39b9",
+    "semantic_hash": "1e6f283b94880c88e4fcd3f1535d39b9"
+  },
+  "C:\\Users\\Brunin\\Desktop\\Projeto_eolica\\docs\\imagens\\fase4\\restricoes_por_hora.svg": {
+    "mtime": 1795401217.8676167,
+    "seen": 1795401593.3134766,
+    "ast_hash": "d6f17e07a336a847a5a5197ff7b40aad",
+    "semantic_hash": "d6f17e07a336a847a5a5197ff7b40aad"
+  },
+  "C:\\Users\\Brunin\\Desktop\\Projeto_eolica\\docs\\imagens\\fase4\\restricoes_por_razao.svg": {
+    "mtime": 1795401217.8676167,
+    "seen": 1795401593.3134766,
+    "ast_hash": "65315d121fce128ee9b5fce0e3ba9b9d",
+    "semantic_hash": "65315d121fce128ee9b5fce0e3ba9b9d"
   }
 }

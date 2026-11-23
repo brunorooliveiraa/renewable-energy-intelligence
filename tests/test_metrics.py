@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from pathlib import Path
 
 import pandas as pd
@@ -10,6 +11,7 @@ import pytest
 from src.metrics import (
     build_enterprise_ranking,
     build_generation_series,
+    generate_basic_phase4_charts,
     identify_peak_restriction_periods,
     reconcile_gnra_values,
     summarize_coverage,
@@ -26,7 +28,6 @@ from src.transform import (
     parse_instante_column,
     validate_granularity_and_add_duration,
 )
-
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 PROCESSED_JAN_CE = (
@@ -165,8 +166,28 @@ def test_metrics_reject_invalid_granularity_tolerance_and_schema() -> None:
     with pytest.raises(ValueError, match="tolerance"):
         reconcile_gnra_values(df, tolerance=-1.0)
 
+    for non_finite in (math.nan, math.inf, -math.inf):
+        with pytest.raises(ValueError, match="finito"):
+            reconcile_gnra_values(df, tolerance=non_finite)
+
     with pytest.raises(SourceSchemaError, match="Colunas obrigatórias"):
         summarize_interval_counts(df.drop(columns=["geracao_verificada_mwh"]))
+
+
+def test_generate_basic_phase4_charts_creates_valid_svg_files(tmp_path: Path) -> None:
+    df = _make_phase3_synthetic_df()
+    charts = generate_basic_phase4_charts(df, tmp_path)
+
+    assert set(charts) == {
+        "geracao_diaria_mwh",
+        "restricoes_por_razao",
+        "restricoes_por_hora",
+    }
+    for chart_path in charts.values():
+        assert chart_path.is_file()
+        content = chart_path.read_text(encoding="utf-8")
+        assert content.startswith("<svg ")
+        assert "</svg>" in content
 
 
 @pytest.mark.skipif(

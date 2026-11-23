@@ -171,7 +171,7 @@ O dicionário oficial contém, entre outros:
                     Dashboard interativo
 ```
 
-**Tecnologias:** Python 3.11+, Pandas, NumPy, Requests, PyArrow, **PostgreSQL (Neon via Vercel Storage)**, **`psycopg` v3**, **FastAPI**, HTML5, CSS3, JavaScript, Pytest, Git/GitHub e **Vercel (Hobby Plan)**. Para respeitar o limite de bundle (250 MB) e timeout (10 s) da Vercel, `requirements.txt` mantém apenas `fastapi` e `psycopg[binary]`, enquanto `requirements-etl.txt` concentra as dependências do pipeline ETL e testes. Detalhes em `docs/arquitetura_vercel.md`.
+**Tecnologias:** Python 3.11+, Pandas, NumPy, Requests, PyArrow, **PostgreSQL (Neon via Vercel Storage)**, **`psycopg` v3** (a incluir na Fase 5), **FastAPI**, HTML5, CSS3, JavaScript, Pytest, Git/GitHub e **Vercel (Hobby Plan)**. Para respeitar os limites de bundle (250 MB), payload (4,5 MB) e duração máxima de 300 s (Hobby Plan, conforme documentação oficial da Vercel), `requirements.txt` mantém apenas dependências efetivamente usadas pelo runtime leve (`fastapi`, e `psycopg[binary]` a partir da Fase 5), enquanto `requirements-etl.txt` concentra as dependências do pipeline ETL e testes. Detalhes em `docs/arquitetura_vercel.md`.
 
 ### 5.1. Estrutura de pastas planejada
 
@@ -331,7 +331,7 @@ pip freeze > requirements.txt
 - [ ] Implementar os endpoints de leitura FastAPI em `api/index.py` (`/api/overview`, `/api/timeseries`, `/api/enterprises`, `/api/reasons`, `/api/quality`) usando `DATABASE_URL` pooled e sem importar `pandas`.
 - [ ] Comparar os totais SQL/API com os resultados do Pandas.
 
-**Critério de conclusão:** as consultas PostgreSQL e os endpoints FastAPI reproduzem os mesmos totais do pipeline sem duplicações e respondem bem abaixo do timeout de 10 s da Vercel.
+**Critério de conclusão:** as consultas PostgreSQL e os endpoints FastAPI reproduzem os mesmos totais do pipeline sem duplicações e respondem de forma ágil dentro dos limites da Vercel (bundle ≤ 250 MB, payload ≤ 4,5 MB e duração máxima de 300 s no plano Hobby).
 
 ### Fase 6 — Dashboard web (`frontend/` hospedado na Vercel)
 

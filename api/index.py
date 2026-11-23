@@ -1,7 +1,7 @@
 """Aplicação serverless FastAPI na Vercel para servir indicadores validados.
 
 A API é intencionalmente leve (sem importar pandas ou pyarrow) para respeitar
-o limite de bundle (250 MB) e timeout (10 s) do plano gratuito da Vercel.
+o limite de bundle (250 MB) e timeout (300 s) do plano gratuito da Vercel.
 Todos os dados analíticos são consultados no PostgreSQL (Neon) via DATABASE_URL
 depois de processados e validados pelo pipeline ETL Python.
 """
@@ -9,12 +9,11 @@ depois de processados e validados pelo pipeline ETL Python.
 from __future__ import annotations
 
 import os
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 from urllib.parse import urlparse
 
 from fastapi import FastAPI
-
 
 _VALID_POSTGRES_SCHEMES = frozenset({"postgresql", "postgres"})
 
@@ -52,5 +51,5 @@ def health_check() -> dict[str, Any]:
         "service": "renewable-energy-intelligence-api",
         "database_engine": "postgresql",
         "database_configured": database_configured,
-        "timestamp_utc": datetime.now(timezone.utc).isoformat(),
+        "timestamp_utc": datetime.now(UTC).isoformat(),
     }

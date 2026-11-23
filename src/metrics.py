@@ -17,6 +17,8 @@ Regras metodológicas aplicadas:
 
 from __future__ import annotations
 
+import math
+from pathlib import Path
 from typing import Literal, TypedDict
 
 import numpy as np
@@ -27,7 +29,6 @@ from src.transform import (
     GNRA_UNIT_STATUS,
     SourceSchemaError,
 )
-
 
 OFFICIAL_REASON_CODES: tuple[str, ...] = ("REL", "CNF", "ENE", "PAR")
 OFFICIAL_ORIGIN_CODES: tuple[str, ...] = ("LOC", "SIS")
@@ -412,9 +413,10 @@ def reconcile_gnra_values(
     if (
         isinstance(tolerance, bool)
         or not isinstance(tolerance, (int, float))
+        or not math.isfinite(tolerance)
         or tolerance < 0
     ):
-        raise ValueError("tolerance deve ser um número maior ou igual a zero.")
+        raise ValueError("tolerance deve ser um número finito maior ou igual a zero.")
 
     total_rows = len(dataframe)
     elig_gnra = dataframe["elegivel_gnra"].fillna(False).astype(bool)
@@ -695,7 +697,7 @@ def summarize_reasons_and_origins(
     """
     _validate_metrics_dataframe(dataframe)
     if not isinstance(include_zero_official_codes, bool):
-        raise ValueError("include_zero_official_codes deve ser booleano (True ou False).")
+        raise TypeError("include_zero_official_codes deve ser booleano (True ou False).")
 
     restrito_mask = (
         dataframe["possui_restricao_classificada"].fillna(False).astype(bool)
@@ -1001,4 +1003,134 @@ def identify_peak_restriction_periods(
         "top_n": top_n,
         "top_days": top_days,
         "top_hours": top_hours,
+    }
+
+
+def _svg_bar_chart(
+    *,
+    title: str,
+    subtitle: str,
+    unit_label: str,
+    labels: list[str],
+    values: list[float],
+    bar_color: str = "#1f6feb",
+) -> str:
+    """Gera um gráfico de barras horizontal em SVG puro (sem dependências extras)."""
+    width = 920
+    margin_left = 190
+    margin_right = 110
+    margin_top = 75
+    row_height = 28
+    chart_height = max(len(labels), 1) * row_height
+    height = margin_top + chart_height + 45
+    usable_width = width - margin_left - margin_right
+    max_val = max((v for v in values if math.isfinite(v) and v > 0), default=1.0)
+
+    def _escape(text: str) -> str:
+        return (
+            text.replace("&", "&amp;")
+            .replace("<", "&lt;")
+            .replace(">", "&gt;")
+            .replace('"', "&quot;")
+        )
+
+    lines = [
+        (
+            f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" '
+            f'viewBox="0 0 {width} {height}" role="img" aria-label="{_escape(title)}">'
+        ),
+        '<rect width="100%" height="100%" fill="#ffffff"/>',
+        f'<text x="20" y="30" font-family="sans-serif" font-size="18" font-weight="bold" fill="#111827">{_escape(title)}</text>',
+        f'<text x="20" y="52" font-family="sans-serif" font-size="12" fill="#4b5563">{_escape(subtitle)} | Unidade: {_escape(unit_label)}</text>',
+    ]
+    for idx, (label, val) in enumerate(zip(labels, values, strict=True)):
+        y = margin_top + idx * row_height
+        bar_w = (max(val, 0.0) / max_val) * usable_width if max_val > 0 else 0.0
+        lines.append(
+            f'<text x="{margin_left - 10}" y="{y + 16}" text-anchor="end" '
+            f'font-family="sans-serif" font-size="12" fill="#1f2937">{_escape(label)}</text>'
+        )
+        lines.append(
+            f'<rect x="{margin_left}" y="{y + 3}" width="{bar_w:.2f}" height="18" '
+            f'rx="3" fill="{bar_color}"/>'
+        )
+        lines.append(
+            f'<text x="{margin_left + bar_w + 8:.2f}" y="{y + 16}" '
+            f'font-family="sans-serif" font-size="11" fill="#111827">{val:,.2f}</text>'
+        )
+
+    lines.append("</svg>\n")
+    return "\n".join(lines)
+
+
+def generate_basic_phase4_charts(
+    dataframe: pd.DataFrame,
+    output_dir: Path | str,
+) -> dict[str, Path]:
+    """Gera gráficos básicos exploratórios em SVG a partir da base validada da Fase 3.
+
+    Produz três gráficos autoexplicativos com unidades visíveis (sem dependências
+    externas além do Python padrão e Pandas):
+    - ``geracao_diaria_mwh.svg``: série diária de geração verificada (MWh);
+    - ``restricoes_por_razao.svg``: contagem de intervalos por razão oficial (REL/CNF/ENE/PAR);
+    - ``restricoes_por_hora.svg``: incidência horária de restrições (00h–23h).
+    """
+    _validate_metrics_dataframe(dataframe)
+    if isinstance(output_dir, str):
+        if not output_dir.strip():
+            raise ValueError("output_dir não pode ser uma string vazia.")
+        target_dir = Path(output_dir.strip())
+    elif isinstance(output_dir, Path):
+        target_dir = output_dir
+    else:
+        raise TypeError("output_dir deve ser um objeto Path ou string não vazia.")
+
+    if target_dir.exists() and not target_dir.is_dir():
+        raise ValueError(f"output_dir aponta para um arquivo existente: {target_dir}.")
+    target_dir.mkdir(parents=True, exist_ok=True)
+
+    daily = build_generation_series(dataframe, granularity="day")
+    reasons = summarize_reasons_and_origins(dataframe)["by_reason"]
+    counts = summarize_interval_counts(dataframe)
+
+    daily_path = target_dir / "geracao_diaria_mwh.svg"
+    daily_svg = _svg_bar_chart(
+        title="Geração Verificada Diária — Ceará (ONS)",
+        subtitle="Apenas patamares elegíveis (MWmed × 0,5 h)",
+        unit_label="MWh",
+        labels=daily["periodo"].astype(str).tolist(),
+        values=[
+            0.0 if pd.isna(v) else float(v) for v in daily["geracao_verificada_mwh"]
+        ],
+        bar_color="#0f766e",
+    )
+    daily_path.write_text(daily_svg, encoding="utf-8")
+
+    reason_path = target_dir / "restricoes_por_razao.svg"
+    reason_svg = _svg_bar_chart(
+        title="Intervalos com Restrição por Razão Oficial (ONS)",
+        subtitle="Distribuição completa do domínio oficial (REL, CNF, ENE, PAR)",
+        unit_label="intervalos semi-horários",
+        labels=reasons["restricao_razao_codigo"].astype(str).tolist(),
+        values=[float(v) for v in reasons["intervalos_com_restricao"]],
+        bar_color="#b45309",
+    )
+    reason_path.write_text(reason_svg, encoding="utf-8")
+
+    hour_path = target_dir / "restricoes_por_hora.svg"
+    by_hour = counts["by_hour"]
+    hour_svg = _svg_bar_chart(
+        title="Perfil Horário de Intervalos com Restrição (00h–23h)",
+        subtitle="Horário oficial publicado pelo ONS (timezone-naive)",
+        unit_label="intervalos semi-horários",
+        labels=[f"{int(h):02d}h" for h in by_hour["hora"]],
+        values=[float(v) for v in by_hour["intervalos_com_restricao"]],
+        bar_color="#1d4ed8",
+    )
+    hour_path.write_text(hour_svg, encoding="utf-8")
+
+    return {
+        "geracao_diaria_mwh": daily_path,
+        "restricoes_por_razao": reason_path,
+        "restricoes_por_hora": hour_path,
     }
