@@ -13,7 +13,7 @@ O plano gratuito da Vercel impõe restrições objetivas às funções Python se
 O pipeline ETL do ONS baixa CSVs de ~36 MB/mês e processa 232 mil linhas por mês com `pandas` e `pyarrow`. Por isso:
 
 1. **O ETL nunca roda dentro de uma rota HTTP da Vercel.** Ele executa localmente (ou agendado no GitHub Actions), usando `requirements-etl.txt`, e grava os dados validados no PostgreSQL (`DIRECT_DATABASE_URL` / `DATABASE_URL`).
-2. **A API serverless (`api/index.py`) usa apenas `requirements.txt` leve** (atualmente apenas `fastapi`; o driver `psycopg[binary]` será adicionado somente na Fase 5, quando a camada PostgreSQL for implementada), **sem importar `pandas` nem `pyarrow`**, garantindo *cold start* rápido e bundle muito abaixo de 250 MB.
+2. **A API serverless (`api/index.py`) usa apenas `requirements.txt` leve** (`fastapi` e `psycopg[binary]`), **sem importar `pandas` nem `pyarrow`**, garantindo *cold start* rápido e bundle muito abaixo de 250 MB.
 3. **O frontend (`frontend/`) nunca acessa o banco diretamente.** Consome apenas rotas JSON (`/api/*`) com contratos explícitos, paginação/agregação no SQL e unidades visíveis.
 
 ## 2. Topologia do sistema
