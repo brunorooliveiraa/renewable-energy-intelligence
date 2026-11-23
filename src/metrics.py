@@ -22,11 +22,28 @@ from typing import Literal, TypedDict
 import numpy as np
 import pandas as pd
 
-from src.transform import GNRA_UNIT_STATUS, SourceSchemaError
+from src.transform import (
+    CEG_AGGREGATE_PLACEHOLDER,
+    GNRA_UNIT_STATUS,
+    SourceSchemaError,
+)
 
+
+OFFICIAL_REASON_CODES: tuple[str, ...] = ("REL", "CNF", "ENE", "PAR")
+OFFICIAL_ORIGIN_CODES: tuple[str, ...] = ("LOC", "SIS")
+_VALID_RANKING_SORT_COLUMNS: frozenset[str] = frozenset(
+    {
+        "intervalos_com_restricao",
+        "geracao_verificada_mwh",
+        "geracao_referencia_final_mwh",
+        "taxa_intervalos_restricao_pct",
+    }
+)
 
 _REQUIRED_BASE_COLUMNS: tuple[str, ...] = (
     "ons_id",
+    "usina_nome",
+    "ceg",
     "instante",
     "geracao_mwmed",
     "geracao_referencia_mwmed",
@@ -40,6 +57,7 @@ _REQUIRED_BASE_COLUMNS: tuple[str, ...] = (
     "elegivel_referencia_final",
     "possui_restricao_classificada",
     "elegivel_gnra",
+    "elegivel_enriquecimento_aneel",
 )
 
 
@@ -69,6 +87,35 @@ class GnraReconciliationReport(TypedDict):
     divergent_rows: int
     negative_reference_minus_generation_rows: int
     max_absolute_error: float | None
+
+
+class CoverageSummary(TypedDict):
+    """Resumo auditável de cobertura dos indicadores e ausência de referências."""
+
+    total_rows: int
+    elegivel_geracao_verificada_rows: int
+    cobertura_geracao_verificada_pct: float
+    elegivel_referencia_final_rows: int
+    sem_referencia_final_rows: int
+    cobertura_referencia_final_pct: float
+    referencia_base_preenchida_rows: int
+    sem_referencia_base_rows: int
+    cobertura_referencia_base_pct: float
+    possui_restricao_classificada_rows: int
+    restricao_com_referencia_final_rows: int
+    restricao_sem_referencia_final_rows: int
+    elegivel_gnra_rows: int
+    elegivel_enriquecimento_aneel_rows: int
+    sem_ceg_individual_rows: int
+
+
+class ReasonsAndOriginsSummary(TypedDict):
+    """Comparativo estruturado por razão oficial (REL/CNF/ENE/PAR) e origem (LOC/SIS)."""
+
+    total_restricted_rows: int
+    by_reason: pd.DataFrame
+    by_origin: pd.DataFrame
+    by_reason_and_origin: pd.DataFrame
 
 
 def _validate_metrics_dataframe(dataframe: pd.DataFrame) -> None:
@@ -119,6 +166,7 @@ def _validate_metrics_dataframe(dataframe: pd.DataFrame) -> None:
         "elegivel_referencia_final",
         "possui_restricao_classificada",
         "elegivel_gnra",
+        "elegivel_enriquecimento_aneel",
     )
     for col in bool_cols:
         if not pd.api.types.is_bool_dtype(dataframe[col].dtype):
@@ -428,4 +476,382 @@ def reconcile_gnra_values(
         "divergent_rows": divergent_rows,
         "negative_reference_minus_generation_rows": negative_diff_rows,
         "max_absolute_error": max_abs_error,
+    }
+
+
+def _pct(numerator: int, denominator: int) -> float:
+    """Calcula percentual arredondado a 4 casas, retornando 0.0 quando denominador == 0."""
+    if denominator <= 0:
+        return 0.0
+    return round((numerator / float(denominator)) * 100.0, 4)
+
+
+def _sum_preserving_na(series: pd.Series) -> object:
+    """Soma uma série numérica retornando ``pd.NA`` se todos os valores forem nulos."""
+    if series.dropna().empty:
+        return pd.NA
+    return float(series.sum(min_count=1))
+
+
+def summarize_coverage(dataframe: pd.DataFrame) -> CoverageSummary:
+    """Contabiliza a cobertura das linhas elegíveis e das linhas sem referência.
+
+    Separa explicitamente a cobertura da referência base
+    (``geracao_referencia_mwmed``) da referência final
+    (``geracao_referencia_final_mwmed``, preenchida oficialmente apenas em ``REL``),
+    além de distinguir restrições com e sem referência final.
+    """
+    _validate_metrics_dataframe(dataframe)
+
+    total_rows = len(dataframe)
+    elig_ger = dataframe["elegivel_geracao_verificada"].fillna(False).astype(bool)
+    elig_ref_final = dataframe["elegivel_referencia_final"].fillna(False).astype(bool)
+    restrito = dataframe["possui_restricao_classificada"].fillna(False).astype(bool)
+    elig_gnra = dataframe["elegivel_gnra"].fillna(False).astype(bool)
+    elig_aneel = dataframe["elegivel_enriquecimento_aneel"].fillna(False).astype(bool)
+    ref_base_present = ~dataframe["geracao_referencia_mwmed"].isna()
+
+    elig_ger_rows = int(elig_ger.sum())
+    elig_ref_final_rows = int(elig_ref_final.sum())
+    ref_base_rows = int(ref_base_present.sum())
+    restrito_rows = int(restrito.sum())
+    restrito_com_ref_final = int((restrito & elig_ref_final).sum())
+    elig_aneel_rows = int(elig_aneel.sum())
+
+    return {
+        "total_rows": total_rows,
+        "elegivel_geracao_verificada_rows": elig_ger_rows,
+        "cobertura_geracao_verificada_pct": _pct(elig_ger_rows, total_rows),
+        "elegivel_referencia_final_rows": elig_ref_final_rows,
+        "sem_referencia_final_rows": total_rows - elig_ref_final_rows,
+        "cobertura_referencia_final_pct": _pct(elig_ref_final_rows, total_rows),
+        "referencia_base_preenchida_rows": ref_base_rows,
+        "sem_referencia_base_rows": total_rows - ref_base_rows,
+        "cobertura_referencia_base_pct": _pct(ref_base_rows, total_rows),
+        "possui_restricao_classificada_rows": restrito_rows,
+        "restricao_com_referencia_final_rows": restrito_com_ref_final,
+        "restricao_sem_referencia_final_rows": restrito_rows - restrito_com_ref_final,
+        "elegivel_gnra_rows": int(elig_gnra.sum()),
+        "elegivel_enriquecimento_aneel_rows": elig_aneel_rows,
+        "sem_ceg_individual_rows": total_rows - elig_aneel_rows,
+    }
+
+
+def build_enterprise_ranking(
+    dataframe: pd.DataFrame,
+    *,
+    sort_by: Literal[
+        "intervalos_com_restricao",
+        "geracao_verificada_mwh",
+        "geracao_referencia_final_mwh",
+        "taxa_intervalos_restricao_pct",
+    ] = "intervalos_com_restricao",
+) -> pd.DataFrame:
+    """Cria ranking agregado por ``ons_id`` + nome de exibição, classificando usina vs conjunto.
+
+    Regras metodológicas:
+    - A chave de agregação é exclusivamente ``ons_id`` (se o nome de exibição mudar
+      ao longo do tempo, adota o nome mais recente ordenado por ``instante`` sem
+      duplicar o empreendimento).
+    - Classifica ``tipo_empreendimento`` com base estrita no ``ceg``:
+      ``"conjunto_sem_ceg"`` (``ceg == '-'``), ``"usina_com_ceg"`` (CEG válido)
+      ou ``"nao_classificado"`` (ausente/vazio).
+    - Não soma GNRa como MWh; expõe ``intervalos_elegiveis_gnra`` e, quando
+      disponível, ``minutos_restricao_total_sum`` em minutos.
+    """
+    _validate_metrics_dataframe(dataframe)
+    if sort_by not in _VALID_RANKING_SORT_COLUMNS:
+        raise ValueError(
+            f"sort_by inválido: {sort_by!r}. Valores aceitos: "
+            f"{sorted(_VALID_RANKING_SORT_COLUMNS)}."
+        )
+
+    output_columns = [
+        "ons_id",
+        "usina_nome",
+        "ceg",
+        "tipo_empreendimento",
+        "total_intervalos",
+        "intervalos_com_restricao",
+        "taxa_intervalos_restricao_pct",
+        "geracao_verificada_mwh",
+        "geracao_referencia_final_mwh",
+        "intervalos_elegiveis_gnra",
+        "minutos_restricao_total_sum",
+    ]
+
+    valid_ons_mask = (~dataframe["ons_id"].isna()) & (
+        dataframe["ons_id"].astype("string").str.strip() != ""
+    )
+    if not bool(valid_ons_mask.any()):
+        return pd.DataFrame(columns=output_columns)
+
+    subset = dataframe.loc[valid_ons_mask].copy()
+    subset = subset.sort_values(["ons_id", "instante"], kind="mergesort")
+
+    elig_ger = subset["elegivel_geracao_verificada"].fillna(False).astype(bool)
+    elig_ref = subset["elegivel_referencia_final"].fillna(False).astype(bool)
+    restrito = subset["possui_restricao_classificada"].fillna(False).astype(bool)
+    elig_gnra = subset["elegivel_gnra"].fillna(False).astype(bool)
+
+    if "minutos_restricao_total" in subset.columns:
+        minutos_total = pd.to_numeric(
+            subset["minutos_restricao_total"], errors="coerce"
+        ).astype("Float64")
+    else:
+        minutos_total = pd.Series(pd.NA, index=subset.index, dtype="Float64")
+
+    work = pd.DataFrame(
+        {
+            "ons_id": subset["ons_id"].astype("string"),
+            "usina_nome": subset["usina_nome"].astype("string"),
+            "ceg": subset["ceg"].astype("string"),
+            "restrito": restrito.astype("int64"),
+            "elig_gnra": elig_gnra.astype("int64"),
+            "geracao_mwh_elegivel": subset["geracao_verificada_mwh"]
+            .astype("Float64")
+            .where(elig_ger, pd.NA),
+            "ref_final_mwh_elegivel": subset["geracao_referencia_final_mwh"]
+            .astype("Float64")
+            .where(elig_ref, pd.NA),
+            "minutos_total": minutos_total,
+        },
+        index=subset.index,
+    )
+
+    def _last_non_null(series: pd.Series) -> object:
+        non_null = series.dropna()
+        if non_null.empty:
+            return pd.NA
+        return str(non_null.iloc[-1])
+
+    grouped = work.groupby("ons_id", sort=True, as_index=False).agg(
+        usina_nome=("usina_nome", _last_non_null),
+        ceg=("ceg", _last_non_null),
+        total_intervalos=("restrito", "size"),
+        intervalos_com_restricao=("restrito", "sum"),
+        geracao_verificada_mwh=("geracao_mwh_elegivel", _sum_preserving_na),
+        geracao_referencia_final_mwh=("ref_final_mwh_elegivel", _sum_preserving_na),
+        intervalos_elegiveis_gnra=("elig_gnra", "sum"),
+        minutos_restricao_total_sum=("minutos_total", _sum_preserving_na),
+    )
+
+    def _classify_ceg(value: object) -> str:
+        if pd.isna(value):
+            return "nao_classificado"
+        text = str(value).strip()
+        if not text:
+            return "nao_classificado"
+        if text == CEG_AGGREGATE_PLACEHOLDER:
+            return "conjunto_sem_ceg"
+        return "usina_com_ceg"
+
+    grouped["usina_nome"] = grouped["usina_nome"].astype("string")
+    grouped["ceg"] = grouped["ceg"].astype("string")
+    grouped["tipo_empreendimento"] = grouped["ceg"].map(_classify_ceg).astype("string")
+    grouped["taxa_intervalos_restricao_pct"] = (
+        (grouped["intervalos_com_restricao"] / grouped["total_intervalos"]) * 100.0
+    ).round(4)
+    grouped["geracao_verificada_mwh"] = grouped["geracao_verificada_mwh"].astype("Float64")
+    grouped["geracao_referencia_final_mwh"] = grouped[
+        "geracao_referencia_final_mwh"
+    ].astype("Float64")
+    grouped["minutos_restricao_total_sum"] = grouped[
+        "minutos_restricao_total_sum"
+    ].astype("Float64")
+
+    sort_order = [sort_by, "geracao_verificada_mwh", "ons_id"]
+    ascending = [False, False, True]
+    if sort_by == "geracao_verificada_mwh":
+        sort_order = ["geracao_verificada_mwh", "intervalos_com_restricao", "ons_id"]
+
+    ranked = (
+        grouped[output_columns]
+        .sort_values(by=sort_order, ascending=ascending, na_position="last")
+        .reset_index(drop=True)
+    )
+    return ranked
+
+
+def summarize_reasons_and_origins(
+    dataframe: pd.DataFrame,
+    *,
+    include_zero_official_codes: bool = True,
+) -> ReasonsAndOriginsSummary:
+    """Compara razões oficiais (REL, CNF, ENE, PAR) e origens (LOC, SIS) nos registros restritos.
+
+    Quando ``include_zero_official_codes=True`` (padrão), códigos oficiais sem
+    ocorrência no período (como ``PAR`` no Ceará em janeiro/2025) aparecem com
+    ``intervalos_com_restricao = 0`` e ``geracao_verificada_mwh = pd.NA`` (nunca
+    ``0.0`` falso para energia).
+    """
+    _validate_metrics_dataframe(dataframe)
+    if not isinstance(include_zero_official_codes, bool):
+        raise ValueError("include_zero_official_codes deve ser booleano (True ou False).")
+
+    restrito_mask = (
+        dataframe["possui_restricao_classificada"].fillna(False).astype(bool)
+    )
+    restricted = dataframe.loc[restrito_mask]
+    total_restricted_rows = len(restricted)
+
+    elig_ger = restricted["elegivel_geracao_verificada"].fillna(False).astype(bool)
+    elig_ref = restricted["elegivel_referencia_final"].fillna(False).astype(bool)
+
+    work = pd.DataFrame(
+        {
+            "ons_id": restricted["ons_id"].astype("string"),
+            "restricao_razao_codigo": restricted["restricao_razao_codigo"].astype("string"),
+            "restricao_origem_codigo": restricted["restricao_origem_codigo"].astype("string"),
+            "geracao_mwh_elegivel": restricted["geracao_verificada_mwh"]
+            .astype("Float64")
+            .where(elig_ger, pd.NA),
+            "ref_final_mwh_elegivel": restricted["geracao_referencia_final_mwh"]
+            .astype("Float64")
+            .where(elig_ref, pd.NA),
+        },
+        index=restricted.index,
+    )
+
+    def _aggregate_dimension(
+        column_name: str,
+        official_codes: tuple[str, ...],
+    ) -> pd.DataFrame:
+        cols = [
+            column_name,
+            "intervalos_com_restricao",
+            "participacao_restricoes_pct",
+            "empreendimentos_afetados",
+            "geracao_verificada_mwh",
+            "geracao_referencia_final_mwh",
+        ]
+        if work.empty:
+            grouped_dim = pd.DataFrame(columns=cols)
+        else:
+            grouped_dim = work.groupby(
+                column_name, dropna=False, sort=True, as_index=False
+            ).agg(
+                intervalos_com_restricao=("ons_id", "size"),
+                empreendimentos_afetados=("ons_id", "nunique"),
+                geracao_verificada_mwh=("geracao_mwh_elegivel", _sum_preserving_na),
+                geracao_referencia_final_mwh=(
+                    "ref_final_mwh_elegivel",
+                    _sum_preserving_na,
+                ),
+            )
+            grouped_dim["participacao_restricoes_pct"] = (
+                (grouped_dim["intervalos_com_restricao"] / float(total_restricted_rows))
+                * 100.0
+            ).round(4)
+
+        if include_zero_official_codes:
+            present_codes = (
+                set(grouped_dim[column_name].dropna().astype(str))
+                if not grouped_dim.empty
+                else set()
+            )
+            missing_rows = [
+                {
+                    column_name: code,
+                    "intervalos_com_restricao": 0,
+                    "participacao_restricoes_pct": 0.0,
+                    "empreendimentos_afetados": 0,
+                    "geracao_verificada_mwh": pd.NA,
+                    "geracao_referencia_final_mwh": pd.NA,
+                }
+                for code in official_codes
+                if code not in present_codes
+            ]
+            if missing_rows:
+                extra_df = pd.DataFrame(missing_rows)
+                grouped_dim = (
+                    extra_df
+                    if grouped_dim.empty
+                    else pd.concat([grouped_dim, extra_df], ignore_index=True)
+                )
+
+        if grouped_dim.empty:
+            return pd.DataFrame(columns=cols)
+
+        grouped_dim[column_name] = grouped_dim[column_name].astype("string")
+        grouped_dim["intervalos_com_restricao"] = grouped_dim[
+            "intervalos_com_restricao"
+        ].astype("int64")
+        grouped_dim["empreendimentos_afetados"] = grouped_dim[
+            "empreendimentos_afetados"
+        ].astype("int64")
+        grouped_dim["participacao_restricoes_pct"] = grouped_dim[
+            "participacao_restricoes_pct"
+        ].astype("float64")
+        grouped_dim["geracao_verificada_mwh"] = grouped_dim[
+            "geracao_verificada_mwh"
+        ].astype("Float64")
+        grouped_dim["geracao_referencia_final_mwh"] = grouped_dim[
+            "geracao_referencia_final_mwh"
+        ].astype("Float64")
+
+        return (
+            grouped_dim[cols]
+            .sort_values(
+                by=["intervalos_com_restricao", column_name],
+                ascending=[False, True],
+                na_position="last",
+            )
+            .reset_index(drop=True)
+        )
+
+    by_reason = _aggregate_dimension("restricao_razao_codigo", OFFICIAL_REASON_CODES)
+    by_origin = _aggregate_dimension("restricao_origem_codigo", OFFICIAL_ORIGIN_CODES)
+
+    cross_cols = [
+        "restricao_razao_codigo",
+        "restricao_origem_codigo",
+        "intervalos_com_restricao",
+        "participacao_restricoes_pct",
+        "empreendimentos_afetados",
+        "geracao_verificada_mwh",
+        "geracao_referencia_final_mwh",
+    ]
+    if work.empty:
+        by_reason_and_origin = pd.DataFrame(columns=cross_cols)
+    else:
+        by_reason_and_origin = work.groupby(
+            ["restricao_razao_codigo", "restricao_origem_codigo"],
+            dropna=False,
+            sort=True,
+            as_index=False,
+        ).agg(
+            intervalos_com_restricao=("ons_id", "size"),
+            empreendimentos_afetados=("ons_id", "nunique"),
+            geracao_verificada_mwh=("geracao_mwh_elegivel", _sum_preserving_na),
+            geracao_referencia_final_mwh=("ref_final_mwh_elegivel", _sum_preserving_na),
+        )
+        by_reason_and_origin["participacao_restricoes_pct"] = (
+            (
+                by_reason_and_origin["intervalos_com_restricao"]
+                / float(total_restricted_rows)
+            )
+            * 100.0
+        ).round(4)
+        by_reason_and_origin["geracao_verificada_mwh"] = by_reason_and_origin[
+            "geracao_verificada_mwh"
+        ].astype("Float64")
+        by_reason_and_origin["geracao_referencia_final_mwh"] = by_reason_and_origin[
+            "geracao_referencia_final_mwh"
+        ].astype("Float64")
+        by_reason_and_origin = (
+            by_reason_and_origin[cross_cols]
+            .sort_values(
+                by=["intervalos_com_restricao", "restricao_razao_codigo"],
+                ascending=[False, True],
+                na_position="last",
+            )
+            .reset_index(drop=True)
+        )
+
+    return {
+        "total_restricted_rows": total_restricted_rows,
+        "by_reason": by_reason,
+        "by_origin": by_origin,
+        "by_reason_and_origin": by_reason_and_origin,
     }

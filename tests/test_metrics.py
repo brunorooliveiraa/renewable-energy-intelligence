@@ -8,9 +8,12 @@ import pandas as pd
 import pytest
 
 from src.metrics import (
+    build_enterprise_ranking,
     build_generation_series,
     reconcile_gnra_values,
+    summarize_coverage,
     summarize_interval_counts,
+    summarize_reasons_and_origins,
 )
 from src.transform import (
     GNRA_UNIT_STATUS,
@@ -200,3 +203,98 @@ def test_phase4_metrics_on_real_january_ce_parquet() -> None:
     assert gnra_report["divergent_rows"] == 0
     assert gnra_report["max_absolute_error"] is not None
     assert gnra_report["max_absolute_error"] < 1e-12
+
+    coverage = summarize_coverage(df)
+    assert coverage["total_rows"] == 28_272
+    assert coverage["elegivel_geracao_verificada_rows"] == 28_272
+    assert coverage["elegivel_referencia_final_rows"] == 2_772
+    assert coverage["restricao_com_referencia_final_rows"] == 2_772
+    assert coverage["restricao_sem_referencia_final_rows"] == 2_920
+    assert coverage["elegivel_enriquecimento_aneel_rows"] == 5_952
+    assert coverage["sem_ceg_individual_rows"] == 22_320
+
+    ranking = build_enterprise_ranking(df)
+    assert len(ranking) == 19
+    assert int((ranking["tipo_empreendimento"] == "conjunto_sem_ceg").sum()) == 15
+    assert int((ranking["tipo_empreendimento"] == "usina_com_ceg").sum()) == 4
+    assert int(ranking["intervalos_com_restricao"].sum()) == 5_692
+
+    reasons_summary = summarize_reasons_and_origins(df)
+    assert reasons_summary["total_restricted_rows"] == 5_692
+    by_reason = reasons_summary["by_reason"].set_index("restricao_razao_codigo")
+    assert int(by_reason.loc["ENE", "intervalos_com_restricao"]) == 2_913
+    assert int(by_reason.loc["REL", "intervalos_com_restricao"]) == 2_772
+    assert int(by_reason.loc["CNF", "intervalos_com_restricao"]) == 7
+    assert int(by_reason.loc["PAR", "intervalos_com_restricao"]) == 0
+    assert pd.isna(by_reason.loc["PAR", "geracao_verificada_mwh"])
+    assert pd.isna(by_reason.loc["ENE", "geracao_referencia_final_mwh"])
+    by_origin = reasons_summary["by_origin"].set_index("restricao_origem_codigo")
+    assert int(by_origin.loc["SIS", "intervalos_com_restricao"]) == 5_685
+    assert int(by_origin.loc["LOC", "intervalos_com_restricao"]) == 7
+
+
+def test_summarize_coverage_handles_reference_gaps_and_empty_dataframe() -> None:
+    df = _make_phase3_synthetic_df()
+    cov = summarize_coverage(df)
+
+    assert cov["total_rows"] == 3
+    assert cov["elegivel_referencia_final_rows"] == 1
+    assert cov["sem_referencia_final_rows"] == 2
+    assert cov["restricao_com_referencia_final_rows"] == 1
+    assert cov["restricao_sem_referencia_final_rows"] == 1
+    assert cov["elegivel_enriquecimento_aneel_rows"] == 1
+    assert cov["sem_ceg_individual_rows"] == 2
+
+    empty_cov = summarize_coverage(df.iloc[0:0])
+    assert empty_cov["total_rows"] == 0
+    assert empty_cov["cobertura_geracao_verificada_pct"] == 0.0
+
+
+def test_build_enterprise_ranking_deduplicates_ons_id_and_classifies_conjuntos() -> None:
+    df = _make_phase3_synthetic_df(
+        {
+            "ons_id": ["CE_01", "CE_01", "CE_02"],
+            "usina_nome": ["Conjunto Antigo", "Conjunto Novo", "Usina Individual"],
+            "ceg": ["-", "-", "EOL.CV.CE.0001-0.01"],
+            "instante": [
+                "2025-01-01 00:00:00",
+                "2025-01-01 00:30:00",
+                "2025-01-01 00:00:00",
+            ],
+            "geracao_mwmed": ["100.0", "100.0", "80.0"],
+            "geracao_referencia_final_mwmed": ["120.0", pd.NA, pd.NA],
+            "restricao_razao_codigo": ["REL", "ENE", pd.NA],
+            "restricao_origem_codigo": ["SIS", "SIS", pd.NA],
+            "geracao_nao_realizada_apurada": ["20.0", "5.0", pd.NA],
+        }
+    )
+
+    ranking = build_enterprise_ranking(df, sort_by="intervalos_com_restricao")
+    assert len(ranking) == 2
+    assert ranking.loc[0, "ons_id"] == "CE_01"
+    assert ranking.loc[0, "usina_nome"] == "Conjunto Novo"
+    assert ranking.loc[0, "tipo_empreendimento"] == "conjunto_sem_ceg"
+    assert ranking.loc[0, "intervalos_com_restricao"] == 2
+    assert ranking.loc[0, "geracao_verificada_mwh"] == 100.0
+    assert ranking.loc[1, "ons_id"] == "CE_02"
+    assert ranking.loc[1, "tipo_empreendimento"] == "usina_com_ceg"
+    assert pd.isna(ranking.loc[1, "geracao_referencia_final_mwh"])
+
+    with pytest.raises(ValueError, match="sort_by inválido"):
+        build_enterprise_ranking(df, sort_by="invalido")  # type: ignore[arg-type]
+
+
+def test_summarize_reasons_and_origins_includes_zero_official_codes_with_na_energy() -> None:
+    df = _make_phase3_synthetic_df()
+
+    summary = summarize_reasons_and_origins(df, include_zero_official_codes=True)
+    by_reason = summary["by_reason"].set_index("restricao_razao_codigo")
+    assert set(by_reason.index) == {"REL", "CNF", "ENE", "PAR"}
+    assert int(by_reason.loc["PAR", "intervalos_com_restricao"]) == 0
+    assert pd.isna(by_reason.loc["PAR", "geracao_verificada_mwh"])
+    assert pd.isna(by_reason.loc["ENE", "geracao_referencia_final_mwh"])
+
+    by_origin = summary["by_origin"].set_index("restricao_origem_codigo")
+    assert set(by_origin.index) == {"LOC", "SIS"}
+    assert int(by_origin.loc["LOC", "intervalos_com_restricao"]) == 0
+    assert pd.isna(by_origin.loc["LOC", "geracao_verificada_mwh"])

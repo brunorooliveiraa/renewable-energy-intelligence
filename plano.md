@@ -312,9 +312,9 @@ pip freeze > requirements.txt
 - [x] Contar linhas por mês, dia, hora, razão e origem de restrição.
 - [x] Criar série diária e mensal da geração verificada em MWh.
 - [x] Agregar a GNRa oficial somente após confirmar sua unidade e os registros elegíveis; manter uma conciliação separada com geração e referência.
-- [ ] Contabilizar a cobertura das linhas elegíveis e as linhas sem referência.
-- [ ] Criar ranking por `id_ons` + nome de exibição, indicando usina ou conjunto quando possível.
-- [ ] Comparar razões `REL`, `CNF`, `ENE`, `PAR` e origens `LOC`, `SIS`.
+- [x] Contabilizar a cobertura das linhas elegíveis e as linhas sem referência.
+- [x] Criar ranking por `id_ons` + nome de exibição, indicando usina ou conjunto quando possível.
+- [x] Comparar razões `REL`, `CNF`, `ENE`, `PAR` e origens `LOC`, `SIS`.
 - [ ] Identificar horários/dias com maiores valores do indicador exploratório.
 - [ ] Anotar **três achados concretos**, com período, unidades, amostra e limitações.
 - [ ] Conferir manualmente alguns cálculos com registros reais do CSV original.
