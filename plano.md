@@ -3,7 +3,7 @@
 > **Projeto de portfólio | Engenharia de Dados + Análise de Dados + Energias Renováveis**  
 > **Problema central:** investigar restrições de geração (*constrained-off* / *curtailment*) em empreendimentos eólicos brasileiros com dados abertos do ONS.  
 > **Foco inicial:** Ceará; evolução para Nordeste e energia solar.  
-> **Status:** Fases 0, 1, 2, 3 e 4 concluídas e enviadas à branch `teste`; pronto para iniciar a Fase 5 (PostgreSQL Neon + API FastAPI na Vercel).
+> **Status:** Fases 0, 1, 2, 3 e 4 concluídas; **Fase 5 em andamento** na branch `teste` (esquema PostgreSQL, índices, views, driver `psycopg` v3 e `/api/health` concluídos).
 
 ---
 
@@ -246,7 +246,7 @@ renewable-energy-intelligence/
 - [x] Criar ambiente virtual do Python.
 - [x] Instalar dependências e salvar `requirements.txt`.
 - [x] Criar `.gitignore`: `.venv/`, `__pycache__/`, `.env`, `data/raw/*`, `data/processed/*`, `database/*.db`, mantendo `.gitkeep`.
-- [ ] Fazer primeiro commit com a estrutura e o plano.
+- [x] Fazer primeiro commit com a estrutura e o plano.
 
 **Comandos sugeridos (Windows PowerShell):**
 
@@ -321,15 +321,15 @@ pip freeze > requirements.txt
 
 **Critério de conclusão:** um notebook ou script produz os indicadores, os gráficos básicos e pelo menos três conclusões sustentadas por números verificáveis.
 
-### Fase 5 — Banco PostgreSQL (Neon / Vercel) e API FastAPI (`sql/schema.sql` + `src/database.py` + `api/index.py`)
+### Fase 5 — Banco PostgreSQL (Neon / Vercel) e API FastAPI (`sql/schema.sql` + `src/database.py` + `src/pipeline.py` + `api/index.py`)
 
-- [ ] Definir esquema PostgreSQL das tabelas (`fact_restricoes`, `dim_empreendimentos`, `etl_execucoes` e tabelas/views pré-agregadas) com chaves de unicidade e índices.
-- [ ] Provisionar o banco PostgreSQL gratuito (Neon via Vercel Storage) e configurar `DATABASE_URL` (pooled) e `DIRECT_DATABASE_URL` no `.env` local e na Vercel.
-- [ ] Implementar a carga idempotente (`ON CONFLICT ... DO UPDATE` / transação por período) da base tratada no PostgreSQL via `psycopg` v3 (executar duas vezes não deve duplicar linhas).
+- [x] Definir esquema PostgreSQL das tabelas (`fact_restricoes`, `dim_empreendimentos`, `etl_execucoes` e views pré-agregadas `vw_serie_diaria`, `vw_serie_mensal`, `vw_ranking_empreendimentos`, `vw_resumo_razoes_origens`) com chaves de unicidade e índices (`sql/schema.sql`).
+- [x] Criar índices para `instante`, `ons_id`, `estado_sigla` e códigos de restrição (`sql/schema.sql`) e implementar validação segura de URLs, aplicação idempotente do esquema e teste de conexão via `psycopg` v3 (`src/database.py`).
+- [x] Provisionar o banco PostgreSQL gratuito (Neon via Vercel Storage), configurar `DATABASE_URL` (pooled) e `DIRECT_DATABASE_URL` no `.env` local e na Vercel e validar com `python -m src.database --check-connection` e `--init-schema`.
+- [x] Implementar a carga idempotente (`ON CONFLICT ... DO UPDATE` / transação por período) da base tratada no PostgreSQL via `psycopg` v3 (`src/database.py`) e orquestrar o fluxo completo em `src/pipeline.py` (executar duas vezes não deve duplicar linhas).
 - [ ] Escrever consultas SQL parametrizadas para indicadores diários, mensais, motivos, ranking e qualidade.
-- [ ] Criar índices para `instante`, `ons_id`, `estado_sigla` e códigos de restrição conforme necessidade.
 - [ ] Implementar os endpoints de leitura FastAPI em `api/index.py` (`/api/overview`, `/api/timeseries`, `/api/enterprises`, `/api/reasons`, `/api/quality`) usando `DATABASE_URL` pooled e sem importar `pandas`.
-- [ ] Comparar os totais SQL/API com os resultados do Pandas.
+- [ ] Comparar os totais SQL/API com os resultados do Pandas (`src/metrics.py`).
 
 **Critério de conclusão:** as consultas PostgreSQL e os endpoints FastAPI reproduzem os mesmos totais do pipeline sem duplicações e respondem de forma ágil dentro dos limites da Vercel (bundle ≤ 250 MB, payload ≤ 4,5 MB e duração máxima de 300 s no plano Hobby).
 
@@ -447,10 +447,10 @@ Ao escrever os scripts, usar parâmetros claros e configurar o caminho dos dados
 O MVP estará pronto quando:
 
 - [ ] O período janeiro–março de 2025 puder ser baixado e processado novamente.
-- [ ] A origem dos dados, revisão e data da coleta estiverem registradas.
-- [ ] As colunas, unidades, chaves e regras de exclusão estiverem documentadas.
-- [ ] Os registros elegíveis e não elegíveis para cálculos estiverem separados.
-- [ ] O banco evitar duplicação ao reexecutar o pipeline.
+- [x] A origem dos dados, revisão e data da coleta estiverem registradas.
+- [x] As colunas, unidades, chaves e regras de exclusão estiverem documentadas.
+- [x] Os registros elegíveis e não elegíveis para cálculos estiverem separados.
+- [x] O banco evitar duplicação ao reexecutar o pipeline.
 - [ ] O dashboard tiver filtros funcionais e pelo menos três análises úteis.
 - [ ] Todos os indicadores apresentarem unidades e notas metodológicas.
 - [ ] Os testes de conversão e agregação passarem.
@@ -467,7 +467,7 @@ O MVP estará pronto quando:
 4. [x] Baixar **um CSV eólico de janeiro/2025** diretamente do portal do ONS.
 5. [x] Ler o CSV no Pandas, descobrir delimitador/decimal e imprimir colunas, tipos e cinco linhas.
 6. [x] Filtrar Ceará e identificar quantidade de `id_ons`, intervalo de datas, valores ausentes e razões de restrição.
-7. [ ] Salvar as primeiras observações no notebook e dar o primeiro commit.
+7. [x] Salvar as primeiras observações no notebook e dar o primeiro commit.
 
 **Primeira entrega concreta:** notebook com inspeção de um mês, confirmação das colunas e um pequeno diagnóstico da cobertura no Ceará. **Não construir o dashboard antes de compreender a base.**
 
@@ -516,6 +516,7 @@ Manter esta seção atualizada conforme a implementação:
 | 2026-11-22 | Usar a API CKAN `package_show` para descobrir recursos mensais | A consulta oficial retornou um recurso único por período e formato, sem exigir URLs mensais manuais |
 | 2026-11-22 | Adotar Vercel + FastAPI + Neon PostgreSQL gratuito no lugar de SQLite local | Permite hospedar gratuitamente aplicação web e API real em produção com separação entre runtime leve (`requirements.txt`) e pipeline ETL (`requirements-etl.txt`) |
 | 2026-11-22 | Adotar commits em português e branch `teste` antes de PR na `main` | Padronizar fluxo de versionamento e revisão |
+| 2026-11-23 | Definir esquema PostgreSQL em `sql/schema.sql` com chave `(ons_id, instante)`, `instante` naive (`TIMESTAMP WITHOUT TIME ZONE`), preservação de `NULL` e views analíticas | Garantir idempotência, compatibilidade metodológica com as Fases 1–4 e consultas rápidas para a API serverless |
 | A definir | Convenção de fuso horário e duração do intervalo | Confirmar na exploração e documentação |
 
 ---
@@ -524,4 +525,4 @@ Manter esta seção atualizada conforme a implementação:
 
 **Um projeto público com código funcional + pipeline de dados + SQL + dashboard + análise técnica escrita + testes + documentação.** O valor do projeto não estará só no visual: estará em extrair dados oficiais, garantir qualidade, construir métricas defensáveis e comunicar conclusões com responsabilidade.
 
-**Próxima ação:** iniciar a Fase 5 (`sql/schema.sql`, `src/database.py` e `api/index.py`) para modelar o esquema PostgreSQL (Neon), implementar carga idempotente e expor os endpoints FastAPI consumidos pelo frontend na Vercel.
+**Próxima ação:** escrever as consultas SQL parametrizadas e implementar os endpoints analíticos FastAPI em `api/index.py` (`/api/overview`, `/api/timeseries`, `/api/enterprises`, `/api/reasons`, `/api/quality`), conciliando os totais da API com o Pandas (`src/metrics.py`).
