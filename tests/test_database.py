@@ -99,6 +99,20 @@ def test_validate_and_mask_postgres_url_accept_valid_urls_and_hide_password() ->
     assert "ep-demo-pooler.us-east-1.aws.neon.tech:5432/neondb?sslmode=require" in masked
 
 
+def test_mask_postgres_url_hides_password_from_query_parameters() -> None:
+    raw = (
+        "postgresql://neondb_owner@ep-demo-pooler.us-east-1.aws.neon.tech/neondb"
+        "?password=s3nh4%40secreta%21&sslmode=require"
+    )
+
+    masked = mask_postgres_url(raw)
+
+    assert "s3nh4" not in masked
+    assert "secreta" not in masked
+    assert "password=%2A%2A%2A" in masked
+    assert "sslmode=require" in masked
+
+
 def test_validate_postgres_url_rejects_invalid_types_and_formats() -> None:
     with pytest.raises(TypeError):
         validate_postgres_url(None)  # type: ignore[arg-type]
@@ -187,6 +201,12 @@ def test_load_schema_sql_validates_file_and_methodological_invariants(tmp_path: 
     assert "instante TIMESTAMP WITHOUT TIME ZONE NOT NULL" in sql_text
     assert "COALESCE(" not in sql_text.upper()
     assert re.search(r"SUM\s*\([^)]*geracao_nao_realizada_apurada", sql_text, re.IGNORECASE) is None
+    reasons_view = sql_text.split("CREATE OR REPLACE VIEW vw_resumo_razoes_origens AS", 1)[1]
+    assert re.search(
+        r"FROM\s+fact_restricoes\s+AS\s+f\s+WHERE\s+f\.possui_restricao_classificada\s*=\s*TRUE",
+        reasons_view,
+        re.IGNORECASE,
+    )
 
     empty_sql = tmp_path / "empty.sql"
     empty_sql.write_text("   \n", encoding="utf-8")

@@ -19,7 +19,7 @@ from collections.abc import Callable, Mapping
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, TypedDict
-from urllib.parse import quote, unquote, urlparse, urlunparse
+from urllib.parse import parse_qsl, quote, unquote, urlencode, urlparse, urlunparse
 
 import psycopg
 
@@ -111,8 +111,14 @@ def mask_postgres_url(raw_url: str) -> str:
         user_part = ""
 
     netloc = f"{user_part}{host}{port_part}"
+    safe_query = urlencode(
+        [
+            (key, "***" if key.casefold() == "password" else value)
+            for key, value in parse_qsl(parsed.query, keep_blank_values=True)
+        ]
+    )
     return urlunparse(
-        (parsed.scheme, netloc, parsed.path, parsed.params, parsed.query, parsed.fragment)
+        (parsed.scheme, netloc, parsed.path, parsed.params, safe_query, parsed.fragment)
     )
 
 

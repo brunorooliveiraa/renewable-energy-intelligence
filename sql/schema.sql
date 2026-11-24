@@ -250,6 +250,7 @@ SELECT
     SUM(f.geracao_referencia_final_mwh) FILTER (WHERE f.elegivel_referencia_final) AS geracao_referencia_final_mwh,
     SUM(f.minutos_restricao_total) FILTER (WHERE f.possui_restricao_classificada) AS minutos_restricao_total
 FROM fact_restricoes AS f
+WHERE f.possui_restricao_classificada = TRUE
 GROUP BY
     f.estado_sigla,
     f.restricao_razao_codigo,

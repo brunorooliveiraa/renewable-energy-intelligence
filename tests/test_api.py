@@ -58,7 +58,9 @@ def test_vercel_config_and_runtime_requirements_stay_lightweight() -> None:
     runtime_reqs = (
         (PROJECT_ROOT / "requirements.txt").read_text(encoding="utf-8").lower()
     )
+    readme = (PROJECT_ROOT / "README.md").read_text(encoding="utf-8").lower()
     assert "fastapi" in runtime_reqs
     assert "psycopg[binary]" in runtime_reqs
     assert "pandas" not in runtime_reqs
     assert "pyarrow" not in runtime_reqs
+    assert "`psycopg[binary]` será adicionado" not in readme
