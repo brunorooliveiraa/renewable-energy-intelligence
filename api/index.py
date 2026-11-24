@@ -146,6 +146,9 @@ def get_enterprises(
     origin: Annotated[
         str | None, Query(description="Código oficial de origem (LOC, SIS).")
     ] = None,
+    ons_id: Annotated[
+        str | None, Query(description="Identificador operacional ONS exato.")
+    ] = None,
     search: Annotated[
         str | None, Query(description="Busca parcial por nome ou ons_id.")
     ] = None,
@@ -164,6 +167,7 @@ def get_enterprises(
         end_date=end_date,
         reason=reason,
         origin=origin,
+        ons_id=ons_id,
         search=search,
         limit=limit,
         offset=offset,

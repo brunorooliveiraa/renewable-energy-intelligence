@@ -153,6 +153,42 @@ def _patch_fake_db(
     )
 
 
+def test_enterprises_query_applies_exact_ons_id_filter() -> None:
+    """O ranking deve respeitar o mesmo ``ons_id`` do restante da Visão Geral."""
+    cursor = FakeQueryCursor(fetchone_queue=[(0,)])
+
+    result = api_queries.query_enterprises(
+        ons_id="CJU_CEPTM",
+        connect_fn=lambda url, *, connect_timeout: FakeQueryConnection(cursor),
+        database_url=(
+            "postgresql://user:segredo@ep-demo-pooler.neon.tech/neondb?sslmode=require"
+        ),
+    )
+
+    assert result["pagination"]["total"] == 0
+    count_sql, count_params = cursor.executed[0]
+    assert "f.ons_id = %s" in count_sql
+    assert "CJU_CEPTM" in count_params
+
+    with pytest.raises(TypeError, match="ons_id deve ser uma string"):
+        api_queries.query_enterprises(
+            ons_id=123,  # type: ignore[arg-type]
+            connect_fn=lambda url, *, connect_timeout: FakeQueryConnection(cursor),
+            database_url=(
+                "postgresql://user:segredo@ep-demo-pooler.neon.tech/neondb?sslmode=require"
+            ),
+        )
+
+    with pytest.raises(ValueError, match="ons_id não pode ser uma string vazia"):
+        api_queries.query_enterprises(
+            ons_id="   ",
+            connect_fn=lambda url, *, connect_timeout: FakeQueryConnection(cursor),
+            database_url=(
+                "postgresql://user:segredo@ep-demo-pooler.neon.tech/neondb?sslmode=require"
+            ),
+        )
+
+
 def test_overview_endpoint_returns_metrics_and_handles_empty_filter_without_fake_zero(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

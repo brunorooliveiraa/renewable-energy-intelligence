@@ -3,7 +3,7 @@
 > **Projeto de portfólio | Engenharia de Dados + Análise de Dados + Energias Renováveis**  
 > **Problema central:** investigar restrições de geração (*constrained-off* / *curtailment*) em empreendimentos eólicos brasileiros com dados abertos do ONS.  
 > **Foco inicial:** Ceará; evolução para Nordeste e energia solar.  
-> **Status:** Fases 0, 1, 2, 3, 4 e **5 concluídas** na branch `teste` (PostgreSQL Neon, carga idempotente, pipeline ETL e API FastAPI `/api/*` conciliada com o Pandas); pronto para iniciar a **Fase 6 (Dashboard Web em `frontend/`)**.
+> **Status:** Fases 0, 1, 2, 3, 4, 5 e **6 concluídas** na branch `teste` (dashboard web em tema claro editorial com 4 abas, fotografias reais do Ceará e consumo dos endpoints `/api/*` validado no navegador); pronto para iniciar a **Fase 7 (Testes ponta a ponta e revisão)**.
 
 ---
 
@@ -335,26 +335,27 @@ pip freeze > requirements.txt
 
 ### Fase 6 — Dashboard web (`frontend/` hospedado na Vercel)
 
-- [ ] Definir e documentar o contrato JSON dos endpoints FastAPI (`/api/*`) consumidos pelo frontend, sem permitir acesso direto do navegador ao PostgreSQL.
-- [ ] Criar estrutura semântica e acessível em HTML com identidade visual, título, descrição e explicação do escopo.
-- [ ] Criar estilos responsivos em CSS para telas grandes e dispositivos móveis.
-- [ ] Implementar o comportamento e as visualizações em JavaScript, com estados explícitos de carregamento, erro e ausência de dados.
-- [ ] Adicionar filtros de período, empreendimento/conjunto, razão e origem.
-- [ ] Criar **aba 1 — Visão geral**: cartões de geração verificada, déficit estimado, intervalos com restrição e empreendimentos/conjuntos cobertos.
-- [ ] Criar gráfico temporal diário/mensal do indicador de restrição.
-- [ ] Criar **aba 2 — Empreendimentos**: ranking, busca por nome/`id_ons` e série de cada empreendimento.
-- [ ] Criar **aba 3 — Motivos**: distribuição por razão e origem; detalhe descritivo quando disponível.
-- [ ] Criar **aba 4 — Qualidade e metodologia**: fontes, períodos cobertos, nulos, alertas e definição dos indicadores.
-- [ ] Exibir unidades em todos os gráficos: MWh, MWmed, contagem de intervalos, %.
-- [ ] Mostrar data da última coleta e aviso de que registros podem ser revisados.
-- [ ] Criar estados de interface para filtros sem resultado (não exibir zero falso).
-- [ ] Evitar carregamentos repetidos e desnecessários; definir cache do navegador ou da camada de dados somente quando houver evidência de necessidade.
-- [ ] Adicionar exportação CSV das agregações filtradas, se viável.
+- [x] Definir e documentar o contrato JSON dos endpoints FastAPI (`/api/*`) consumidos pelo frontend, sem permitir acesso direto do navegador ao PostgreSQL.
+- [x] Criar estrutura semântica e acessível em HTML com identidade visual, título, descrição e explicação do escopo (`frontend/index.html`).
+- [x] Criar estilos responsivos em CSS para telas grandes e dispositivos móveis (`frontend/assets/css/styles.css`).
+- [x] Implementar o comportamento e as visualizações em JavaScript, com estados explícitos de carregamento, erro e ausência de dados (`frontend/assets/js/app.js`).
+- [x] Adicionar filtros de período, empreendimento/conjunto, razão e origem.
+- [x] Criar **aba 1 — Visão geral**: cartões de geração verificada, referência final, intervalos com restrição e empreendimentos/conjuntos cobertos.
+- [x] Criar gráfico temporal diário/mensal do indicador de restrição e geração verificada.
+- [x] Criar **aba 2 — Empreendimentos**: ranking, busca por nome/`id_ons` e série individual de cada empreendimento.
+- [x] Criar **aba 3 — Motivos**: distribuição por razão e origem; detalhe descritivo quando disponível.
+- [x] Criar **aba 4 — Qualidade e metodologia**: fontes, períodos cobertos, nulos, alertas e definição dos indicadores.
+- [x] Exibir unidades em todos os gráficos: MWh, MWmed, contagem de intervalos, %.
+- [x] Mostrar data da última coleta/carga e aviso de que registros podem ser revisados.
+- [x] Criar estados de interface para filtros sem resultado (não exibir zero falso).
+- [x] Evitar carregamentos repetidos e desnecessários com cache em memória por recorte de filtros.
+- [x] Adicionar exportação CSV das agregações filtradas.
 
 **Critério de conclusão:** alguém que nunca viu o código consegue responder às perguntas da seção 1.3 utilizando apenas o dashboard.
 
 ### Fase 7 — Testes e revisão
 
+- [x] Cobrir em navegador real todos os 19 botões do dashboard, incluindo filtros, exportações, paginação e estados de erro/ausência.
 - [ ] Criar dados sintéticos pequenos para testar as fórmulas sem depender da internet.
 - [ ] Testar que 100 MWmed em **um intervalo de 30 minutos** equivalem a **50 MWh**.
 - [ ] Testar separadamente a conciliação da GNRa em MWmed e a conversão de potência média para MWh, sem misturar o valor oficial com uma fórmula substituta.
@@ -451,8 +452,8 @@ O MVP estará pronto quando:
 - [x] As colunas, unidades, chaves e regras de exclusão estiverem documentadas.
 - [x] Os registros elegíveis e não elegíveis para cálculos estiverem separados.
 - [x] O banco evitar duplicação ao reexecutar o pipeline.
-- [ ] O dashboard tiver filtros funcionais e pelo menos três análises úteis.
-- [ ] Todos os indicadores apresentarem unidades e notas metodológicas.
+- [x] O dashboard tiver filtros funcionais e pelo menos três análises úteis.
+- [x] Todos os indicadores apresentarem unidades e notas metodológicas.
 - [ ] Os testes de conversão e agregação passarem.
 - [ ] O projeto rodar a partir de um clone limpo seguindo o README.
 - [ ] O GitHub contiver código organizado, documentação e capturas reais.
@@ -525,4 +526,4 @@ Manter esta seção atualizada conforme a implementação:
 
 **Um projeto público com código funcional + pipeline de dados + SQL + dashboard + análise técnica escrita + testes + documentação.** O valor do projeto não estará só no visual: estará em extrair dados oficiais, garantir qualidade, construir métricas defensáveis e comunicar conclusões com responsabilidade.
 
-**Próxima ação:** iniciar a **Fase 6 (Dashboard Web em `frontend/`)** construindo a interface responsiva em HTML, CSS e JavaScript consumindo os endpoints `/api/*` validados na Fase 5.
+**Próxima ação:** avançar para a **Fase 7 (Testes e revisão)** consolidando testes de ponta a ponta e depois a **Fase 8** para carregar fevereiro e março de 2025 (completando o 1º trimestre do MVP).

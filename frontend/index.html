@@ -5,55 +5,679 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta
       name="description"
-      content="Dashboard de inteligência sobre restrições de geração eólica com dados oficiais validados."
+      content="Painel interativo sobre restrições de geração eólica (constrained-off) no Brasil a partir de dados abertos validados do ONS."
     >
-    <title>Renewable Energy Intelligence</title>
+    <title>Renewable Energy Intelligence — Restrições Eólicas</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+      href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    >
     <link rel="stylesheet" href="assets/css/styles.css">
     <script src="assets/js/app.js" defer></script>
   </head>
   <body>
-    <header class="site-header">
-      <p class="eyebrow">Renewable Energy Intelligence</p>
-      <h1>Restrições de geração eólica</h1>
-      <p class="intro">
-        Uma análise reproduzível baseada em dados abertos oficiais do ONS.
-      </p>
-    </header>
+    <a class="skip-link" href="#main-content">Pular para o conteúdo principal</a>
 
-    <main>
-      <section class="status-card" aria-labelledby="project-status-title">
-        <p class="status-label">Status do projeto</p>
-        <h2 id="project-status-title">Preparação do ambiente</h2>
-        <p>
-          Os dados ainda não foram processados. Indicadores, gráficos e filtros só serão
-          exibidos depois que a fonte e a metodologia forem validadas.
-        </p>
-      </section>
-
-      <section class="principles" aria-labelledby="principles-title">
-        <h2 id="principles-title">Compromissos da análise</h2>
-        <div class="principles-grid">
-          <article>
-            <h3>Fonte rastreável</h3>
-            <p>Cada resultado deverá manter referência ao arquivo e à coleta de origem.</p>
-          </article>
-          <article>
-            <h3>Unidades explícitas</h3>
-            <p>Potência em MWmed não será apresentada como energia em MWh sem conversão validada.</p>
-          </article>
-          <article>
-            <h3>Limitações visíveis</h3>
-            <p>Ausências, cobertura e decisões metodológicas acompanharão os indicadores.</p>
-          </article>
+    <div class="app-frame">
+      <!-- SIDEBAR VERDE-PETRÓLEO (inspirada nas referências 1 e 2) -->
+      <aside class="sidebar" aria-label="Navegação principal">
+        <div class="sidebar-brand">
+          <div class="brand-mark" aria-hidden="true">
+            <svg class="turbine-svg" viewBox="0 0 28 28" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M14 14V26" />
+              <g class="turbine-blades">
+                <path d="M14 14L14 3.5" />
+                <path d="M14 14L23 19.2" />
+                <path d="M14 14L5 19.2" />
+              </g>
+              <circle cx="14" cy="14" r="2" fill="currentColor" />
+            </svg>
+          </div>
+          <div class="brand-text">
+            <span class="brand-title">Wind Intel</span>
+            <span class="brand-sub">ONS · Ceará</span>
+          </div>
         </div>
-      </section>
-    </main>
 
-    <footer>
-      <p>
-        Projeto independente, sem vínculo oficial com o ONS ou a ANEEL.
-        <span id="current-year"></span>
-      </p>
-    </footer>
+        <nav class="sidebar-nav" role="tablist" aria-label="Seções do painel">
+          <button
+            type="button"
+            role="tab"
+            id="tab-btn-overview"
+            class="nav-item is-active"
+            aria-selected="true"
+            aria-controls="panel-overview"
+            data-tab="overview"
+          >
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <rect x="3" y="3" width="7" height="7" rx="1.5" />
+              <rect x="14" y="3" width="7" height="7" rx="1.5" />
+              <rect x="3" y="14" width="7" height="7" rx="1.5" />
+              <rect x="14" y="14" width="7" height="7" rx="1.5" />
+            </svg>
+            <span>Visão geral</span>
+          </button>
+
+          <button
+            type="button"
+            role="tab"
+            id="tab-btn-enterprises"
+            class="nav-item"
+            aria-selected="false"
+            aria-controls="panel-enterprises"
+            data-tab="enterprises"
+            tabindex="-1"
+          >
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M12 12V21" />
+              <path d="M12 12L12 4" />
+              <path d="M12 12L19 16" />
+              <path d="M12 12L5 16" />
+              <circle cx="12" cy="12" r="1.5" fill="currentColor" />
+            </svg>
+            <span>Empreendimentos</span>
+          </button>
+
+          <button
+            type="button"
+            role="tab"
+            id="tab-btn-reasons"
+            class="nav-item"
+            aria-selected="false"
+            aria-controls="panel-reasons"
+            data-tab="reasons"
+            tabindex="-1"
+          >
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M4 19V5" />
+              <path d="M4 19h16" />
+              <path d="M8 15v-4" />
+              <path d="M13 15V8" />
+              <path d="M18 15v-6" />
+            </svg>
+            <span>Motivos</span>
+          </button>
+
+          <button
+            type="button"
+            role="tab"
+            id="tab-btn-quality"
+            class="nav-item"
+            aria-selected="false"
+            aria-controls="panel-quality"
+            data-tab="quality"
+            tabindex="-1"
+          >
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M12 3l7 4v5c0 5-3.5 8-7 9-3.5-1-7-4-7-9V7l7-4z" />
+              <path d="M9 12l2 2 4-4" />
+            </svg>
+            <span>Qualidade</span>
+          </button>
+        </nav>
+
+        <div class="sidebar-footer">
+          <div class="sidebar-photo-card">
+            <img
+              src="assets/img/wind_offshore.jpg"
+              alt="Turbinas eólicas no oceano"
+              class="sidebar-photo"
+              width="647"
+              height="551"
+            >
+            <div class="sidebar-photo-overlay">
+              <span id="api-status-badge" class="status-pill status-pill--loading" role="status" aria-live="polite">
+                <span class="status-dot" aria-hidden="true"></span>
+                Conectando…
+              </span>
+              <span id="last-update-badge" class="sidebar-meta">Última carga: —</span>
+            </div>
+          </div>
+        </div>
+      </aside>
+
+      <!-- CANVAS PRINCIPAL CLARO -->
+      <div class="workspace">
+        <header class="workspace-header">
+          <div class="workspace-title-group">
+            <h1 id="workspace-heading">Visão geral</h1>
+            <p class="workspace-subtitle">
+              Restrições de geração eólica (<em>constrained-off</em>) · Dados abertos validados do ONS
+            </p>
+          </div>
+
+          <div class="workspace-header-actions">
+            <span class="header-chip" id="header-period-chip">CE · 01/01/2025 – 31/01/2025</span>
+            <button type="button" class="btn btn--pill-outline" id="btn-export-active">
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M12 3v12" />
+                <path d="M7 10l5 5 5-5" />
+                <path d="M5 20h14" />
+              </svg>
+              Exportar CSV
+            </button>
+          </div>
+        </header>
+
+        <!-- BARRA DE FILTROS EM PÍLULAS (inspirada na referência 1) -->
+        <section class="filters-card" aria-label="Filtros globais da análise">
+          <form id="filters-form" class="filters-row" novalidate>
+            <div class="pill-field">
+              <label for="filter-state">UF</label>
+              <select id="filter-state" name="state">
+                <option value="CE" selected>CE — Ceará</option>
+              </select>
+            </div>
+
+            <div class="pill-field">
+              <label for="filter-start-date">Início</label>
+              <input id="filter-start-date" name="start_date" type="date" value="2025-01-01">
+            </div>
+
+            <div class="pill-field">
+              <label for="filter-end-date">Fim</label>
+              <input id="filter-end-date" name="end_date" type="date" value="2025-01-31">
+            </div>
+
+            <div class="pill-field">
+              <label for="filter-reason">Razão</label>
+              <select id="filter-reason" name="reason">
+                <option value="">Todas</option>
+                <option value="REL">REL — Confiabilidade elét.</option>
+                <option value="CNF">CNF — Confiabilidade</option>
+                <option value="ENE">ENE — Energética</option>
+                <option value="PAR">PAR — Parada</option>
+              </select>
+            </div>
+
+            <div class="pill-field">
+              <label for="filter-origin">Origem</label>
+              <select id="filter-origin" name="origin">
+                <option value="">Todas</option>
+                <option value="LOC">LOC — Local</option>
+                <option value="SIS">SIS — Sistêmica</option>
+              </select>
+            </div>
+
+            <div class="pill-field pill-field--ons">
+              <label for="filter-ons-id">ons_id</label>
+              <input
+                id="filter-ons-id"
+                name="ons_id"
+                type="text"
+                placeholder="Ex.: CEUCZ"
+                autocomplete="off"
+                spellcheck="false"
+              >
+            </div>
+
+            <div class="filters-actions">
+              <button type="submit" class="btn btn--gold" id="btn-apply-filters">
+                Filtrar
+              </button>
+              <button type="button" class="btn btn--soft" id="btn-reset-filters">
+                Limpar
+              </button>
+            </div>
+          </form>
+
+          <p id="filter-validation-error" class="inline-alert inline-alert--error" role="alert" hidden></p>
+        </section>
+
+        <main id="main-content" class="workspace-main">
+          <div id="global-error-banner" class="state-box state-box--error" role="alert" hidden>
+            <div class="state-box__body">
+              <h2>Não foi possível consultar os indicadores</h2>
+              <p id="global-error-message"></p>
+            </div>
+            <button type="button" class="btn btn--soft" id="btn-retry-global">
+              Tentar novamente
+            </button>
+          </div>
+
+          <!-- ============================================================
+               ABA 1: VISÃO GERAL (Bento Grid inspirado nas referências 1 e 2)
+               ============================================================ -->
+          <section
+            id="panel-overview"
+            class="tab-panel is-active"
+            role="tabpanel"
+            aria-labelledby="tab-btn-overview"
+          >
+            <div id="overview-empty" class="state-box state-box--empty" hidden>
+              <div class="state-box__body">
+                <h2>Nenhum registro encontrado para este recorte</h2>
+                <p>
+                  Os filtros aplicados não retornaram intervalos semi-horários.
+                  Ausência de registro nunca é exibida como zero.
+                </p>
+              </div>
+              <button type="button" class="btn btn--gold" data-action="reset-filters">
+                Restaurar recorte padrão
+              </button>
+            </div>
+
+            <!-- LINHA SUPERIOR DO BENTO: Card Gráfico Azul-Gelo + 3 KPIs Pastéis -->
+            <div class="bento-top" id="kpi-strip">
+              <article class="chart-hero-card">
+                <div class="chart-hero-head">
+                  <div>
+                    <span class="card-caption" id="hero-metric-caption">Geração verificada (MWh)</span>
+                    <strong class="hero-kpi-value" id="kpi-gen-mwh">—</strong>
+                    <span class="hero-kpi-sub" id="kpi-gen-meta">Carregando intervalos elegíveis…</span>
+                  </div>
+
+                  <div class="chart-hero-controls">
+                    <div class="segmented" role="group" aria-label="Granularidade da série">
+                      <button type="button" class="segmented-btn is-active" data-granularity="daily" aria-pressed="true">
+                        Diária
+                      </button>
+                      <button type="button" class="segmented-btn" data-granularity="monthly" aria-pressed="false">
+                        Mensal
+                      </button>
+                    </div>
+
+                    <label class="sr-only" for="chart-metric-select">Métrica do gráfico</label>
+                    <select id="chart-metric-select" class="mini-select">
+                      <option value="geracao_verificada_mwh" selected>Geração (MWh)</option>
+                      <option value="intervalos_com_restricao">Restrições (int.)</option>
+                      <option value="geracao_referencia_final_mwh">Ref. final (MWh)</option>
+                      <option value="taxa_intervalos_restricao_pct">Taxa (%)</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div id="timeseries-chart-container" class="chart-stage" aria-live="polite">
+                  <div class="skeleton-chart" aria-label="Carregando gráfico temporal"></div>
+                </div>
+              </article>
+
+              <div class="pastel-kpis">
+                <article class="pastel-card pastel-card--mint">
+                  <div class="pastel-card__top">
+                    <span class="pastel-label">Referência final</span>
+                    <span class="pastel-unit">MWh</span>
+                  </div>
+                  <strong class="pastel-value" id="kpi-ref-mwh">—</strong>
+                  <span class="pastel-meta" id="kpi-ref-meta">Somente intervalos com referência</span>
+                </article>
+
+                <article class="pastel-card pastel-card--cream">
+                  <div class="pastel-card__top">
+                    <span class="pastel-label">Intervalos restritos</span>
+                    <span class="pastel-unit">30 min</span>
+                  </div>
+                  <strong class="pastel-value pastel-value--amber" id="kpi-restricted-count">—</strong>
+                  <span class="pastel-meta" id="kpi-restricted-meta">Taxa (%) e minutos totais</span>
+                </article>
+
+                <article class="pastel-card pastel-card--lavender">
+                  <div class="pastel-card__top">
+                    <span class="pastel-label">Empreend. / conjuntos</span>
+                    <span class="pastel-unit">ons_id</span>
+                  </div>
+                  <strong class="pastel-value" id="kpi-enterprises-count">—</strong>
+                  <span class="pastel-meta" id="kpi-enterprises-meta">Identificadores distintos no CE</span>
+                </article>
+              </div>
+            </div>
+
+            <!-- LINHA INFERIOR DO BENTO: Top Empreendimentos + Card Escuro Cinematográfico -->
+            <div class="bento-bottom">
+              <section class="surface-card" aria-labelledby="top-enterprises-title">
+                <div class="surface-card__head">
+                  <div>
+                    <h2 id="top-enterprises-title">Maiores volumes de restrição</h2>
+                    <p class="surface-subtitle">Top 5 por intervalos restritos no período selecionado</p>
+                  </div>
+                  <button type="button" class="btn btn--soft btn--sm" data-goto-tab="enterprises">
+                    Ver todos
+                  </button>
+                </div>
+
+                <div class="table-wrap">
+                  <table class="clean-table">
+                    <thead>
+                      <tr>
+                        <th scope="col">Empreendimento / Conjunto</th>
+                        <th scope="col">Tipo</th>
+                        <th scope="col" class="num">Restrições</th>
+                        <th scope="col" class="num">Taxa (%)</th>
+                        <th scope="col" class="num">Geração (MWh)</th>
+                      </tr>
+                    </thead>
+                    <tbody id="overview-top-tbody">
+                      <tr><td colspan="5">Carregando ranking…</td></tr>
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+
+              <aside class="dark-feature-card" aria-labelledby="feature-reasons-title">
+                <img
+                  src="assets/img/wind_night.jpg"
+                  alt="Turbinas eólicas iluminadas à noite"
+                  class="dark-feature-bg"
+                  width="510"
+                  height="559"
+                  loading="lazy"
+                >
+                <div class="dark-feature-scrim" aria-hidden="true"></div>
+
+                <div class="dark-feature-content">
+                  <h2 id="feature-reasons-title">Composição das restrições</h2>
+                  <p class="dark-feature-sub" id="revision-notice-text">
+                    Dados históricos do ONS sujeitos a revisão oficial; ausência nunca vira zero.
+                  </p>
+
+                  <div id="overview-reasons-mini" class="mini-reasons-list"></div>
+
+                  <button type="button" class="btn btn--gold btn--full" data-goto-tab="reasons">
+                    Explorar motivos e origens
+                  </button>
+                </div>
+              </aside>
+            </div>
+          </section>
+
+          <!-- ============================================================
+               ABA 2: EMPREENDIMENTOS
+               ============================================================ -->
+          <section
+            id="panel-enterprises"
+            class="tab-panel"
+            role="tabpanel"
+            aria-labelledby="tab-btn-enterprises"
+            hidden
+          >
+            <section class="surface-card" aria-labelledby="enterprises-title">
+              <div class="surface-card__head">
+                <div>
+                  <h2 id="enterprises-title">Ranking por empreendimento ou conjunto (ons_id)</h2>
+                  <p class="surface-subtitle">
+                    Separação explícita entre usinas individuais com CEG e conjuntos sem CEG (<code>-</code>).
+                    Clique em uma linha para abrir sua série temporal individual.
+                  </p>
+                </div>
+
+                <div class="surface-controls">
+                  <label class="sr-only" for="enterprise-search-input">Buscar por nome ou ons_id</label>
+                  <input
+                    id="enterprise-search-input"
+                    type="search"
+                    class="search-pill"
+                    placeholder="Buscar por nome ou ons_id…"
+                    autocomplete="off"
+                  >
+                  <button type="button" class="btn btn--soft btn--sm" id="btn-export-enterprises">
+                    Exportar CSV
+                  </button>
+                </div>
+              </div>
+
+              <div id="enterprises-empty" class="state-box state-box--empty" hidden>
+                <div class="state-box__body">
+                  <h3>Nenhum empreendimento encontrado</h3>
+                  <p>Nenhum registro corresponde à busca ou aos filtros ativos.</p>
+                </div>
+              </div>
+
+              <div class="table-wrap" id="enterprises-table-wrap">
+                <table class="clean-table" aria-describedby="enterprises-title">
+                  <thead>
+                    <tr>
+                      <th scope="col">Empreendimento / Conjunto</th>
+                      <th scope="col">Tipo</th>
+                      <th scope="col" class="num">Restrições (int.)</th>
+                      <th scope="col" class="num">Taxa (%)</th>
+                      <th scope="col" class="num">Geração verif. (MWh)</th>
+                      <th scope="col" class="num">Ref. final (MWh)</th>
+                      <th scope="col" class="num">Minutos restr.</th>
+                    </tr>
+                  </thead>
+                  <tbody id="enterprises-tbody"></tbody>
+                </table>
+              </div>
+
+              <div class="pagination-bar" id="enterprises-pagination">
+                <span id="enterprises-pagination-info" class="pagination-info">—</span>
+                <div class="pagination-actions">
+                  <button type="button" class="btn btn--soft btn--sm" id="btn-ent-prev" disabled>
+                    Anterior
+                  </button>
+                  <button type="button" class="btn btn--soft btn--sm" id="btn-ent-next" disabled>
+                    Próxima
+                  </button>
+                </div>
+              </div>
+            </section>
+
+            <section id="enterprise-detail-section" class="surface-card" aria-labelledby="enterprise-detail-title" hidden>
+              <div class="surface-card__head">
+                <div>
+                  <h2 id="enterprise-detail-title">Série individual</h2>
+                  <p class="surface-subtitle" id="enterprise-detail-subtitle"></p>
+                </div>
+                <div class="surface-controls">
+                  <button type="button" class="btn btn--gold btn--sm" id="btn-filter-by-enterprise">
+                    Aplicar filtro global
+                  </button>
+                  <button type="button" class="btn btn--soft btn--sm" id="btn-close-enterprise-detail">
+                    Fechar
+                  </button>
+                </div>
+              </div>
+              <div id="enterprise-detail-chart" class="chart-stage"></div>
+            </section>
+          </section>
+
+          <!-- ============================================================
+               ABA 3: MOTIVOS
+               ============================================================ -->
+          <section
+            id="panel-reasons"
+            class="tab-panel"
+            role="tabpanel"
+            aria-labelledby="tab-btn-reasons"
+            hidden
+          >
+            <div class="split-grid">
+              <section class="surface-card" aria-labelledby="reasons-bar-title">
+                <div class="surface-card__head">
+                  <div>
+                    <h2 id="reasons-bar-title">Razões oficiais (REL, CNF, ENE, PAR)</h2>
+                    <p class="surface-subtitle">
+                      Códigos sem ocorrência exibem 0 intervalos e energia ausente (—).
+                    </p>
+                  </div>
+                  <button type="button" class="btn btn--soft btn--sm" id="btn-export-reasons">
+                    Exportar CSV
+                  </button>
+                </div>
+                <div id="reasons-bars" class="bars-list" aria-live="polite"></div>
+              </section>
+
+              <section class="surface-card" aria-labelledby="origins-bar-title">
+                <div class="surface-card__head">
+                  <div>
+                    <h2 id="origins-bar-title">Origens oficiais (LOC, SIS)</h2>
+                    <p class="surface-subtitle">
+                      Comparativo entre restrições locais e sistêmicas no recorte.
+                    </p>
+                  </div>
+                </div>
+                <div id="origins-bars" class="bars-list" aria-live="polite"></div>
+              </section>
+            </div>
+
+            <section class="surface-card" aria-labelledby="reasons-matrix-title">
+              <div class="surface-card__head">
+                <div>
+                  <h2 id="reasons-matrix-title">Detalhamento por razão e origem</h2>
+                  <p class="surface-subtitle">
+                    Cruzamento completo em registros com código de restrição válido.
+                  </p>
+                </div>
+              </div>
+
+              <div id="reasons-empty" class="state-box state-box--empty" hidden>
+                <div class="state-box__body">
+                  <h3>Nenhuma restrição classificada no recorte</h3>
+                  <p>Não há intervalos com código oficial de restrição para os filtros selecionados.</p>
+                </div>
+              </div>
+
+              <div class="table-wrap" id="reasons-table-wrap">
+                <table class="clean-table">
+                  <thead>
+                    <tr>
+                      <th scope="col">Razão</th>
+                      <th scope="col">Origem</th>
+                      <th scope="col" class="num">Intervalos</th>
+                      <th scope="col" class="num">Participação (%)</th>
+                      <th scope="col" class="num">Empreend.</th>
+                      <th scope="col" class="num">Geração (MWh)</th>
+                      <th scope="col" class="num">Ref. final (MWh)</th>
+                      <th scope="col" class="num">Minutos</th>
+                    </tr>
+                  </thead>
+                  <tbody id="reasons-tbody"></tbody>
+                </table>
+              </div>
+            </section>
+
+            <section class="surface-card" aria-labelledby="descriptions-title">
+              <div class="surface-card__head">
+                <div>
+                  <h2 id="descriptions-title">Descrições qualitativas (dsc_restricao)</h2>
+                  <p class="surface-subtitle">
+                    Textos descritivos preenchidos pelo ONS quando disponíveis no arquivo original.
+                  </p>
+                </div>
+              </div>
+              <div id="descriptions-container"></div>
+            </section>
+          </section>
+
+          <!-- ============================================================
+               ABA 4: QUALIDADE E METODOLOGIA
+               ============================================================ -->
+          <section
+            id="panel-quality"
+            class="tab-panel"
+            role="tabpanel"
+            aria-labelledby="tab-btn-quality"
+            hidden
+          >
+            <div class="quality-kpis">
+              <article class="pastel-card pastel-card--ice">
+                <div class="pastel-card__top">
+                  <span class="pastel-label">Elegíveis — Geração</span>
+                  <span class="pastel-unit">MWh</span>
+                </div>
+                <strong class="pastel-value" id="q-elig-gen">—</strong>
+                <span class="pastel-meta" id="q-elig-gen-meta">Intervalos válidos</span>
+              </article>
+
+              <article class="pastel-card pastel-card--mint">
+                <div class="pastel-card__top">
+                  <span class="pastel-label">Cobertura — Ref. final</span>
+                  <span class="pastel-unit">%</span>
+                </div>
+                <strong class="pastel-value" id="q-cov-ref">—</strong>
+                <span class="pastel-meta" id="q-cov-ref-meta">Sem referência final</span>
+              </article>
+
+              <article class="pastel-card pastel-card--cream">
+                <div class="pastel-card__top">
+                  <span class="pastel-label">Cobertura — GNRa oficial</span>
+                  <span class="pastel-unit">%</span>
+                </div>
+                <strong class="pastel-value" id="q-cov-gnra">—</strong>
+                <span class="pastel-meta" id="q-cov-gnra-meta">Unidade pendente de confirmação</span>
+              </article>
+
+              <article class="pastel-card pastel-card--lavender">
+                <div class="pastel-card__top">
+                  <span class="pastel-label">Composição cadastral</span>
+                  <span class="pastel-unit">CEG</span>
+                </div>
+                <strong class="pastel-value" id="q-ceg-split">—</strong>
+                <span class="pastel-meta">Usinas com CEG / Conjuntos (-)</span>
+              </article>
+            </div>
+
+            <section class="surface-card" aria-labelledby="executions-title">
+              <div class="surface-card__head">
+                <div>
+                  <h2 id="executions-title">Auditoria de execuções ETL e revisões ONS</h2>
+                  <p class="surface-subtitle">
+                    Rastreabilidade de arquivos brutos, hashes SHA-256 e cargas idempotentes no PostgreSQL Neon.
+                  </p>
+                </div>
+              </div>
+
+              <div class="table-wrap">
+                <table class="clean-table">
+                  <thead>
+                    <tr>
+                      <th scope="col">Período</th>
+                      <th scope="col">Arquivo bruto</th>
+                      <th scope="col">SHA-256</th>
+                      <th scope="col" class="num">Entrada → Carregadas</th>
+                      <th scope="col">Carga (UTC)</th>
+                      <th scope="col">Metodologia</th>
+                    </tr>
+                  </thead>
+                  <tbody id="executions-tbody"></tbody>
+                </table>
+              </div>
+            </section>
+
+            <section class="methodology-grid" aria-labelledby="methodology-title">
+              <div class="surface-card">
+                <h2 id="methodology-title">Premissas metodológicas e transparência</h2>
+                <ul class="methodology-list">
+                  <li>
+                    <strong>Potência vs. energia:</strong> <code>MWmed</code> é potência média no intervalo.
+                    A conversão <code>MWh = MWmed × 0,5 h</code> ocorre somente após validação da granularidade de 30 minutos.
+                  </li>
+                  <li>
+                    <strong>GNRa oficial preservada:</strong> <code>val_geracaonaorealizadaapurada</code> é mantida no grão original com status <code>pending_official_confirmation</code>, sem ser tratada como energia indenizável.
+                  </li>
+                  <li>
+                    <strong>Ausência nunca vira zero:</strong> campos nulos e recortes sem registro permanecem nulos (<code>—</code>) na API e na interface.
+                  </li>
+                  <li>
+                    <strong>Usinas vs. conjuntos:</strong> a chave operacional é <code>ons_id</code>; <code>ceg = "-"</code> identifica conjuntos sem vínculo forçado com a ANEEL.
+                  </li>
+                </ul>
+                <p class="disclaimer-note">
+                  Projeto independente — <strong>não é produto oficial do ONS ou da ANEEL</strong>.
+                  Fonte: ONS Dados Abertos (CC BY 4.0). <span id="current-year"></span>
+                </p>
+              </div>
+
+              <figure class="photo-showcase-card">
+                <img
+                  src="assets/img/hero_paracuru_ce.jpg"
+                  alt="Parque eólico nas dunas de Paracuru, Ceará"
+                  loading="lazy"
+                  width="1600"
+                  height="1067"
+                >
+                <figcaption>
+                  Parque eólico em Paracuru (CE). Foto: Guilherme Almeida da Silva / Wikimedia Commons (CC BY-SA 4.0).
+                </figcaption>
+              </figure>
+            </section>
+          </section>
+        </main>
+      </div>
+    </div>
+
+    <div id="chart-tooltip" class="chart-tooltip" role="tooltip" hidden></div>
   </body>
 </html>

@@ -33,6 +33,9 @@ Copie `.env.example` para `.env` e configure `DATABASE_URL` (string *pooled* do 
 # Executar a suíte de testes automatizados
 python -m pytest -q
 
+# O teste E2E do frontend é incluído no pytest e requer Node.js 22+ e
+# Chrome/Chromium; use CHROME_BIN caso o navegador não esteja em um caminho padrão.
+
 # Extrair dados brutos oficiais do ONS via API CKAN
 python -m src.extract --year 2025 --month 1 --source eolica
 

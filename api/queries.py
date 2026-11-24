@@ -166,6 +166,8 @@ def validate_filters(
 
     clean_ons_id: str | None = None
     if ons_id is not None:
+        if not isinstance(ons_id, str):
+            raise TypeError("ons_id deve ser uma string não vazia.")
         stripped = ons_id.strip()
         if not stripped:
             raise ValueError("ons_id não pode ser uma string vazia.")
@@ -492,6 +494,7 @@ def query_enterprises(
     end_date: date | None = None,
     reason: str | None = None,
     origin: str | None = None,
+    ons_id: str | None = None,
     search: str | None = None,
     limit: int = 50,
     offset: int = 0,
@@ -510,6 +513,7 @@ def query_enterprises(
         end_date=end_date,
         reason=reason,
         origin=origin,
+        ons_id=ons_id,
     )
     where_sql, params = _build_fact_where_clause(filters, table_alias="f")
 
