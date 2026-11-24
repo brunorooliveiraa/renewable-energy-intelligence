@@ -3,7 +3,7 @@
 > **Projeto de portfólio | Engenharia de Dados + Análise de Dados + Energias Renováveis**  
 > **Problema central:** investigar restrições de geração (*constrained-off* / *curtailment*) em empreendimentos eólicos brasileiros com dados abertos do ONS.  
 > **Foco inicial:** Ceará; evolução para Nordeste e energia solar.  
-> **Status:** Fases 0, 1, 2, 3 e 4 concluídas; **Fase 5 em andamento** na branch `teste` (esquema PostgreSQL, índices, views, driver `psycopg` v3 e `/api/health` concluídos).
+> **Status:** Fases 0, 1, 2, 3, 4 e **5 concluídas** na branch `teste` (PostgreSQL Neon, carga idempotente, pipeline ETL e API FastAPI `/api/*` conciliada com o Pandas); pronto para iniciar a **Fase 6 (Dashboard Web em `frontend/`)**.
 
 ---
 
@@ -327,9 +327,9 @@ pip freeze > requirements.txt
 - [x] Criar índices para `instante`, `ons_id`, `estado_sigla` e códigos de restrição (`sql/schema.sql`) e implementar validação segura de URLs, aplicação idempotente do esquema e teste de conexão via `psycopg` v3 (`src/database.py`).
 - [x] Provisionar o banco PostgreSQL gratuito (Neon via Vercel Storage), configurar `DATABASE_URL` (pooled) e `DIRECT_DATABASE_URL` no `.env` local e na Vercel e validar com `python -m src.database --check-connection` e `--init-schema`.
 - [x] Implementar a carga idempotente (`ON CONFLICT ... DO UPDATE` / transação por período) da base tratada no PostgreSQL via `psycopg` v3 (`src/database.py`) e orquestrar o fluxo completo em `src/pipeline.py` (executar duas vezes não deve duplicar linhas).
-- [ ] Escrever consultas SQL parametrizadas para indicadores diários, mensais, motivos, ranking e qualidade.
-- [ ] Implementar os endpoints de leitura FastAPI em `api/index.py` (`/api/overview`, `/api/timeseries`, `/api/enterprises`, `/api/reasons`, `/api/quality`) usando `DATABASE_URL` pooled e sem importar `pandas`.
-- [ ] Comparar os totais SQL/API com os resultados do Pandas (`src/metrics.py`).
+- [x] Escrever consultas SQL parametrizadas para indicadores diários, mensais, motivos, ranking e qualidade (`api/queries.py`).
+- [x] Implementar os endpoints de leitura FastAPI em `api/index.py` (`/api/overview`, `/api/timeseries`, `/api/enterprises`, `/api/reasons`, `/api/quality`) usando `DATABASE_URL` pooled e sem importar `pandas`.
+- [x] Comparar os totais SQL/API com os resultados do Pandas (`src/metrics.py`).
 
 **Critério de conclusão:** as consultas PostgreSQL e os endpoints FastAPI reproduzem os mesmos totais do pipeline sem duplicações e respondem de forma ágil dentro dos limites da Vercel (bundle ≤ 250 MB, payload ≤ 4,5 MB e duração máxima de 300 s no plano Hobby).
 
@@ -525,4 +525,4 @@ Manter esta seção atualizada conforme a implementação:
 
 **Um projeto público com código funcional + pipeline de dados + SQL + dashboard + análise técnica escrita + testes + documentação.** O valor do projeto não estará só no visual: estará em extrair dados oficiais, garantir qualidade, construir métricas defensáveis e comunicar conclusões com responsabilidade.
 
-**Próxima ação:** escrever as consultas SQL parametrizadas e implementar os endpoints analíticos FastAPI em `api/index.py` (`/api/overview`, `/api/timeseries`, `/api/enterprises`, `/api/reasons`, `/api/quality`), conciliando os totais da API com o Pandas (`src/metrics.py`).
+**Próxima ação:** iniciar a **Fase 6 (Dashboard Web em `frontend/`)** construindo a interface responsiva em HTML, CSS e JavaScript consumindo os endpoints `/api/*` validados na Fase 5.
